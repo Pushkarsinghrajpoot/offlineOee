@@ -324,6 +324,24 @@ export default function KPIDashboard() {
                 </ComposedChart>
               </ResponsiveContainer>
             )}
+            {selectedChart === "Downtime Contribution" && (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={downtimeData}
+                    cx="50%"
+                    cy="50%"
+                    outerRadius={200}
+                    label={({ name, value }) => `${name}: ${value}%`}
+                  >
+                    {downtimeData.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            )}
             {selectedChart === "Energy & Utilities" && (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
@@ -433,27 +451,29 @@ export default function KPIDashboard() {
       <div className="grid gap-6 md:grid-cols-4">
         {/* Downtime Contribution Charts */}
         {Array.from({ length: 3 }).map((_, i) => (
-            <Card key={i}>
+          <Card key={i}>
             <CardHeader>
               <CardTitle className="text-lg font-medium">Downtime Contribution</CardTitle>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={200}>
-                <PieChart>
-                  <Pie
-                    data={downtimeData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={80}
-                    label={({ name, value }) => `${name}: ${value}%`}
-                  >
-                    {downtimeData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
+              <div className="cursor-pointer" onClick={() => setSelectedChart("Downtime Contribution")}>
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={downtimeData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={80}
+                      label={({ name, value }) => `${name}: ${value}%`}
+                    >
+                      {downtimeData.map((entry, index) => (
+                        <Cell key={index} fill={entry.color} />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
         ))}
