@@ -26,7 +26,7 @@ export function OEEReport() {
   return (
     <div className="space-y-4">
       <div className="text-sm text-muted-foreground">
-        South Asia/Kimberly Clark Lever, Pune./Diaper//Zuko2
+        PixwingAi/Kimberly Clark Lever, Pune./Diaper//Zuko2
         <br />
         01/Feb/2011 11:15 PM through 03/Feb/2011 3:15 PM
         <br />

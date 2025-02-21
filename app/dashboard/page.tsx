@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Bar,
@@ -18,7 +18,12 @@ import {
 import { CircularProgressBar } from "@/components/CircularProgressBar"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import * as XLSX from 'xlsx'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
+import { Link } from "lucide-react"
 
 const ProductionGauge = () => {
   const [currentSpeed, setCurrentSpeed] = useState(0)
@@ -138,6 +143,37 @@ export default function ProductionDashboard() {
     waste: Math.floor(Math.random() * 1000) + 500,
   }))
 
+  const chartRef = useRef<HTMLDivElement>(null)
+
+  const handlePrint = async () => {
+    if (chartRef.current && selectedChart) {
+      const canvas = await html2canvas(chartRef.current)
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF()
+      pdf.addImage(imgData, 'PNG', 10, 10, 190, 100)
+      pdf.save(`${selectedChart.toLowerCase().replace(/\s+/g, '_')}.pdf`)
+    }
+  }
+
+  const handleExportToExcel = () => {
+    if (selectedChart === "Down-time Contribution") {
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(downtimeData)
+      XLSX.utils.book_append_sheet(wb, ws, 'Downtime Data')
+      XLSX.writeFile(wb, 'downtime_contribution.xlsx')
+    } else if (selectedChart === "Time Account") {
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(timeAccountData)
+      XLSX.utils.book_append_sheet(wb, ws, 'Time Account Data')
+      XLSX.writeFile(wb, 'time_account.xlsx')
+    } else if (selectedChart === "Hourly Production") {
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(hourlyProductionData)
+      XLSX.utils.book_append_sheet(wb, ws, 'Hourly Production Data')
+      XLSX.writeFile(wb, 'hourly_production.xlsx')
+    }
+  }
+
   const renderChartDialog = () => {
     return (
       <Dialog open={!!selectedChart} onOpenChange={() => setSelectedChart(null)}>
@@ -145,7 +181,7 @@ export default function ProductionDashboard() {
           <DialogHeader>
             <DialogTitle>{selectedChart}</DialogTitle>
           </DialogHeader>
-          <div className="w-full h-full">
+          <div ref={chartRef} className="w-full h-full">
             {selectedChart === "Down-time Contribution" && (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
@@ -190,6 +226,15 @@ export default function ProductionDashboard() {
               </ResponsiveContainer>
             )}
           </div>
+          <DialogFooter className="mt-4 border-t pt-4">
+            <Button onClick={handlePrint} className="bg-purple-500 hover:bg-purple-600">
+              Print Chart
+            </Button>
+            <Button onClick={handleExportToExcel} className="bg-green-500 hover:bg-green-600">
+              Export to Excel
+            </Button>
+            <Button onClick={() => setSelectedChart(null)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     )
@@ -335,6 +380,9 @@ export default function ProductionDashboard() {
                 </div>
               </div>
             </CardContent>
+            <Link path="/downtime-tracker">
+            <Button className="w-full mt-4">Downtime Tracker</Button>
+            </Link>
           </Card>
 
           {/* Hourly Production */}
@@ -367,4 +415,3 @@ export default function ProductionDashboard() {
     </div>
   )
 }
-

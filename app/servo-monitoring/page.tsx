@@ -1,7 +1,11 @@
 "use client"
 
-import { useState } from "react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { useState, useRef } from "react"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import * as XLSX from 'xlsx'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 import {
   Line,
   LineChart,
@@ -94,6 +98,27 @@ export default function ServoMonitoring() {
     data: Array<{ time: string; temperature: number; torque: number }>
   } | null>(null)
 
+  const chartRef = useRef<HTMLDivElement>(null)
+
+  const handlePrint = async () => {
+    if (chartRef.current && selectedChart) {
+      const canvas = await html2canvas(chartRef.current)
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF()
+      pdf.addImage(imgData, 'PNG', 10, 10, 190, 100)
+      pdf.save(`${selectedChart.title.toLowerCase().replace(/\s+/g, '_')}.pdf`)
+    }
+  }
+
+  const handleExportToExcel = () => {
+    if (selectedChart) {
+      const wb = XLSX.utils.book_new()
+      const ws = XLSX.utils.json_to_sheet(selectedChart.data)
+      XLSX.utils.book_append_sheet(wb, ws, 'Chart Data')
+      XLSX.writeFile(wb, `${selectedChart.title.toLowerCase().replace(/\s+/g, '_')}.xlsx`)
+    }
+  }
+
   // Generate data for all charts
   const chartData = machines.reduce(
     (acc, machine) => {
@@ -133,13 +158,23 @@ export default function ServoMonitoring() {
             </DialogHeader>
 
             {/* Chart Content */}
-            <div className="flex-grow p-6 pt-2 overflow-auto">
+            <div ref={chartRef} className="flex-grow p-6 pt-2 overflow-auto">
               {selectedChart && <LargeChart title={selectedChart.title} data={selectedChart.data} />}
             </div>
+
+            {/* Footer with Print and Export buttons */}
+            <DialogFooter className="p-6 pt-2 border-t">
+              <Button onClick={handlePrint} className="bg-purple-500 hover:bg-purple-600">
+                Print Chart
+              </Button>
+              <Button onClick={handleExportToExcel} className="bg-green-500 hover:bg-green-600">
+                Export to Excel
+              </Button>
+              <Button onClick={() => setSelectedChart(null)}>Close</Button>
+            </DialogFooter>
           </div>
         </DialogContent>
       </Dialog>
     </div>
   )
 }
-

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Bar,
@@ -21,7 +21,11 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { ComposedChart } from "recharts"
 import { Activity, AlertTriangle, Droplets, Power } from "lucide-react"
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import * as XLSX from 'xlsx'
+import html2canvas from 'html2canvas'
+import jsPDF from 'jspdf'
 
 const ProductionRateCard = () => {
   const [currentSpeed, setCurrentSpeed] = useState(0)
@@ -47,7 +51,7 @@ const ProductionRateCard = () => {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-lg font-medium">Production Rate</CardTitle>
+        <CardTitle className="text-lg font-medium">Line Speed</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="flex flex-col items-center gap-2">
@@ -113,13 +117,13 @@ const ProductionRateCard = () => {
             fontWeight="bold" 
             fill="black" /* Changed to black for visibility */
           >
-            {Math.round(percentage)}%
+            {Math.round(currentSpeed)} su/hr
           </text>
         </svg>
           </div>
           <div className="flex justify-between w-full text-sm">
-            <span>Actual Speed: {Math.round(currentSpeed)}</span>
-            <span>Target Speed: {targetSpeed}</span>
+            {/* <span>Actual Speed: {Math.round(currentSpeed)}</span> */}
+            <span className="text-lg font-medium text-gray-500 text-center">Target Speed: {targetSpeed} su/hr</span>
           </div>
         </div>
       </CardContent>
@@ -223,70 +227,71 @@ const OEECard = ({
 
 export default function KPIDashboard() {
   const [selectedChart, setSelectedChart] = useState<string | null>(null)
-  
-  const oeeData = {
-    current: { oee: 65, availability: 89, efficiency: 79, quality: 93 },
-    mtd: { oee: 65, availability: 89, efficiency: 79, quality: 93 },
-    ytd: { oee: 65, availability: 89, efficiency: 79, quality: 93 },
+  const chartRef = useRef<HTMLDivElement>(null)
+
+  const handlePrint = async () => {
+    if (chartRef.current && selectedChart) {
+      const canvas = await html2canvas(chartRef.current)
+      const imgData = canvas.toDataURL('image/png')
+      const pdf = new jsPDF('l', 'mm', 'a4') // 'l' for landscape
+      const pageWidth = pdf.internal.pageSize.getWidth()
+      const pageHeight = pdf.internal.pageSize.getHeight()
+      
+      // Calculate aspect ratio to fit the chart properly
+      const imgWidth = canvas.width
+      const imgHeight = canvas.height
+      const ratio = Math.min(pageWidth / imgWidth, pageHeight / imgHeight)
+      
+      const finalWidth = imgWidth * ratio
+      const finalHeight = imgHeight * ratio
+      const xOffset = (pageWidth - finalWidth) / 2
+      const yOffset = (pageHeight - finalHeight) / 2
+      
+      pdf.addImage(imgData, 'PNG', xOffset, yOffset, finalWidth, finalHeight)
+      pdf.save(`${selectedChart.toLowerCase().replace(/\s+/g, '_')}.pdf`)
+    }
   }
 
-  const linewiseData = [
-    { line: "Line 1", oee: 56, waste: 1 },
-    { line: "Line 2", oee: 65, waste: 3 },
-    { line: "Line 3", oee: 54, waste: 3 },
-    { line: "Line 4", oee: 76, waste: 2 },
-    { line: "Line 5", oee: 82, waste: 3 },
-    { line: "Line 6", oee: 45, waste: 3 },
-    { line: "Line 7", oee: 85, waste: 2 },
-  ]
+  const handleExportToExcel = () => {
+    if (!selectedChart) return
 
-  const productionRate = {
-    current: 203,
-    target: 400,
+    const wb = XLSX.utils.book_new()
+    let data: any[] = []
+
+    if (selectedChart === "Linewise Performance") {
+      data = linewiseData.map(item => ({
+        Line: item.line,
+        'OEE (%)': item.oee,
+        'Waste (%)': item.waste
+      }))
+    } else if (selectedChart === "Downtime Contribution") {
+      data = downtimeData.map(item => ({
+        'Downtime Type': item.name,
+        'Percentage': item.value
+      }))
+    } else if (selectedChart === "Energy & Utilities") {
+      // Combine all utility data into a single row per hour
+      data = Array.from({ length: 24 }, (_, hour) => ({
+        Hour: hour,
+        'Power': energyData.power[hour].value,
+        'Water': energyData.water[hour].value,
+        'Air': energyData.air[hour].value
+      }))
+    }
+
+    const ws = XLSX.utils.json_to_sheet(data)
+    XLSX.utils.book_append_sheet(wb, ws, 'Chart Data')
+    XLSX.writeFile(wb, `${selectedChart.toLowerCase().replace(/\s+/g, '_')}.xlsx`)
   }
-
-  const downtimeData = [
-    { name: "Downtime", value: 32, color: "#3b82f6" },
-    { name: "Maintenance", value: 12, color: "#eab308" },
-    { name: "White Time", value: 23, color: "#d1d5db" },
-    { name: "External Cause", value: 23, color: "#ef4444" },
-    { name: "Grade Change", value: 5, color: "#22c55e" },
-    { name: "Speed Loss", value: 5, color: "#8b5cf6" },
-  ]
-
-  const safetyData = {
-    firstAid: 2,
-    incidents: [
-      { type: "Critical", count: 1, status: "Open" },
-      { type: "Moderate", count: 3, status: "In Progress" },
-      { type: "Minor", count: 5, status: "Resolved" },
-    ],
-  }
-
-  const energyData = {
-    power: Array.from({ length: 24 }, (_, i) => ({
-      hour: i,
-      value: Math.floor(Math.random() * 100) + 50,
-    })),
-    water: Array.from({ length: 24 }, (_, i) => ({
-      hour: i,
-      value: Math.floor(Math.random() * 50) + 20,
-    })),
-    air: Array.from({ length: 24 }, (_, i) => ({
-      hour: i,
-      value: Math.floor(Math.random() * 30) + 70,
-    })),
-  }
-
 
   const renderChartDialog = () => {
     return (
       <Dialog open={!!selectedChart} onOpenChange={() => setSelectedChart(null)}>
-        <DialogContent className="max-w-[90vw] w-[800px] h-[600px]">
+        <DialogContent className="max-w-[90vw] w-[900px] h-[700px] flex flex-col">
           <DialogHeader>
             <DialogTitle>{selectedChart}</DialogTitle>
           </DialogHeader>
-          <div className="w-full h-full">
+          <div ref={chartRef} className="flex-1 p-8">
             {selectedChart === "Linewise Performance" && (
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={linewiseData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
@@ -331,7 +336,7 @@ export default function KPIDashboard() {
                     data={downtimeData}
                     cx="50%"
                     cy="50%"
-                    outerRadius={200}
+                    outerRadius={Math.min(window.innerWidth * 0.3, window.innerHeight * 0.3)}
                     label={({ name, value }) => `${name}: ${value}%`}
                   >
                     {downtimeData.map((entry, index) => (
@@ -346,7 +351,11 @@ export default function KPIDashboard() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
                   <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hour" />
+                  <XAxis 
+                    dataKey="hour" 
+                    domain={[0, 23]}
+                    tickFormatter={(value) => `${value}:00`}
+                  />
                   <YAxis />
                   <Tooltip />
                   <Legend />
@@ -357,9 +366,76 @@ export default function KPIDashboard() {
               </ResponsiveContainer>
             )}
           </div>
+          <DialogFooter className="border-t pt-4">
+            <div className="flex justify-end gap-2 w-full">
+              <Button onClick={handlePrint} className="bg-purple-500 hover:bg-purple-600">
+                Print Chart
+              </Button>
+              <Button onClick={handleExportToExcel} className="bg-green-500 hover:bg-green-600">
+                Export to Excel
+              </Button>
+              <Button onClick={() => setSelectedChart(null)}>
+                Close
+              </Button>
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     )
+  }
+
+  const oeeData = {
+    current: { oee: 65, availability: 89, efficiency: 79, quality: 93 },
+    mtd: { oee: 65, availability: 89, efficiency: 79, quality: 93 },
+    ytd: { oee: 65, availability: 89, efficiency: 79, quality: 93 },
+  }
+
+  const linewiseData = [
+    { line: "Line 1", oee: 56, waste: 1 },
+    { line: "Line 2", oee: 65, waste: 3 },
+    { line: "Line 3", oee: 54, waste: 3 },
+    { line: "Line 4", oee: 76, waste: 2 },
+    { line: "Line 5", oee: 82, waste: 3 },
+    { line: "Line 6", oee: 45, waste: 3 },
+    { line: "Line 7", oee: 85, waste: 2 },
+  ]
+
+  const productionRate = {
+    current: 203,
+    target: 400,
+  }
+
+  const downtimeData = [
+    { name: "Downtime", value: 32, color: "#3b82f6" },
+    { name: "Maintenance", value: 12, color: "#eab308" },
+    { name: "White Time", value: 23, color: "gray" },
+    { name: "External Cause", value: 23, color: "#ef4444" },
+    { name: "Grade Change", value: 5, color: "#22c55e" },
+    { name: "Speed Loss", value: 5, color: "#8b5cf6" },
+  ]
+
+  const safetyData = {
+    firstAid: 2,
+    incidents: [
+      { type: "Critical", count: 1, status: "Open" },
+      { type: "Moderate", count: 3, status: "In Progress" },
+      { type: "Minor", count: 5, status: "Resolved" },
+    ],
+  }
+
+  const energyData = {
+    power: Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      value: Math.floor(Math.random() * 100) + 50,
+    })),
+    water: Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      value: Math.floor(Math.random() * 50) + 20,
+    })),
+    air: Array.from({ length: 24 }, (_, i) => ({
+      hour: i,
+      value: Math.floor(Math.random() * 30) + 70,
+    })),
   }
 
   return (
@@ -422,28 +498,41 @@ export default function KPIDashboard() {
         {/* Safety & Incident Tracking */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Safety Indices</CardTitle>
+            <CardTitle className="text-2xl font-bold text-center">Safe Days</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Safe Days Counter */}
             <div className="text-center">
               <div className="text-6xl font-bold mb-2">300</div>
-              <div className="text-xl">Safe Days</div>
+              {/* <div className="text-xl">Safe Days</div> */}
             </div>
             
             {/* Safety Metrics Table */}
             <div className="mt-4">
-              <div className="grid grid-cols-2">
-                <div className="bg-blue-500 text-white p-2">Number of First Aids</div>
-                <div className="bg-blue-500 text-white p-2 text-center">2</div>
+              <div className="grid gap-2">
+                <div className="flex justify-between items-center bg-blue-500 text-white p-2 rounded-md">
+                  <span>Number of First Aids</span>
+                  <span className="pr-2">2</span>
+                </div>
                 
-                <div className="bg-gray-200 p-2">Lost Time Injury</div>
-                <div className="bg-gray-200 p-2 text-center">0</div>
+                <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
+                  <span>Lost Time Injury</span>
+                  <span className="pr-2 text-center">0</span>
+                </div>
                 
-                <div className="bg-gray-200 p-2">Major Incident</div>
-                <div className="bg-gray-200 p-2 text-center">0</div>
+                <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
+                  <span>Major Incident</span>
+                  <span className="pr-2 text-center">0</span>
+                </div>
+                
+                <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
+                  <span>Property Damage</span>
+                  <span className="pr-2 text-center">0</span>
+                </div>
               </div>
             </div>
+
+
           </CardContent>
         </Card>
       </div>
@@ -517,5 +606,3 @@ export default function KPIDashboard() {
     </div>
   )
 }
-
-
