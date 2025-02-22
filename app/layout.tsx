@@ -10,7 +10,7 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "PixWingAI OEE Dashboard",
   description: "Overall Equipment Effectiveness Dashboard for PixWingAI",
-    generator: 'v0.dev'
+  generator: 'v0.dev'
 }
 
 export default function RootLayout({
@@ -32,7 +32,3 @@ export default function RootLayout({
     </html>
   )
 }
-
-
-
-import './globals.css'
