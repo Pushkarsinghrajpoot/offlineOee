@@ -1,17 +1,17 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { usePathname } from "next/navigation"
+import { useTheme } from "next-themes"
+import { usePathname, useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { User, Settings, LogOut, Moon, Sun } from "lucide-react"
+import { Moon, Sun, User } from "lucide-react"
+import { useAuth } from "@/context/auth-context"
+import { toast } from "sonner"
 
 const pageNames: { [key: string]: string } = {
   "/": "KPI Dashboard",
@@ -19,61 +19,70 @@ const pageNames: { [key: string]: string } = {
   "/reports": "Reports",
   "/servo-monitoring": "Servo Monitoring",
   "/downtime-tracker": "Downtime Tracker",
+  "/settings": "Settings",
+  "/login": "Login"
 }
 
 export function Header() {
+  const { theme, setTheme } = useTheme()
   const pathname = usePathname()
-  const [user, setUser] = useState({ name: "John Doe", email: "john@example.com" })
-  const [theme, setTheme] = useState<"light" | "dark">("light")
+  const router = useRouter()
+  const { logout, checkAccess } = useAuth()
 
-  useEffect(() => {
-    // Check for system preference
-    const systemPrefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches
-    setTheme(systemPrefersDark ? "dark" : "light")
+  // Hide header on login page
+  if (pathname === "/login") return null
 
-    // Apply the theme to the document
-    document.documentElement.classList.toggle("dark", systemPrefersDark)
-  }, [])
+  // Check if the current page is accessible
+  const pageName = pageNames[pathname]
+  const isKpiDashboard = pathname === "/"
+  const hasKpiAccess = checkAccess("kpiDashboard")
 
-  const toggleTheme = () => {
-    const newTheme = theme === "dark" ? "light" : "dark"
-    setTheme(newTheme)
-    document.documentElement.classList.toggle("dark", newTheme === "dark")
+  // If on KPI dashboard but no access, don't show header
+  if (isKpiDashboard && !hasKpiAccess) return null
+
+  const handleLogout = async () => {
+    try {
+      await logout()
+      toast.success('Logged out successfully')
+      router.push('/login')
+      router.refresh()
+    } catch (error) {
+      toast.error('Error logging out')
+    }
   }
 
   return (
-    <header className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 px-4 py-3 flex items-center justify-between">
-      <h1 className="text-2xl font-bold dark:text-white">{pageNames[pathname] || "Dashboard"}</h1>
-      <div className="flex items-center space-x-4">
-        <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-gray-700 dark:text-gray-300">
-          {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
-              <User className="h-5 w-5" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent className="w-56" align="end" forceMount>
-            <DropdownMenuLabel className="font-normal">
-              <div className="flex flex-col space-y-1">
-                <p className="text-sm font-medium leading-none">{user.name}</p>
-                <p className="text-xs leading-none text-muted-foreground">{user.email}</p>
-              </div>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem>
-              <Settings className="mr-2 h-4 w-4" />
-              <span>Settings</span>
-            </DropdownMenuItem>
-            <DropdownMenuItem>
-              <LogOut className="mr-2 h-4 w-4" />
-              <span>Log out</span>
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+    <header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <div className="container flex h-14 items-center justify-between">
+        <h1 className="text-xl font-semibold">{pageName}</h1>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}
+            className="h-9 w-9"
+          >
+            {theme === 'dark' ? (
+              <Sun className="h-[1.2rem] w-[1.2rem]" />
+            ) : (
+              <Moon className="h-[1.2rem] w-[1.2rem]" />
+            )}
+          </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon">
+                <User className="h-[1.2rem] w-[1.2rem]" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={handleLogout}>
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
     </header>
   )
 }
-

@@ -1,9 +1,11 @@
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import "./globals.css"
-import { Sidebar } from "@/components/Sidebar"
-import { Header } from "@/components/Header"
+import { AppLayout } from "@/components/layouts/AppLayout"
 import type React from "react"
+import { AuthProvider } from "@/context/auth-context"
+import { Toaster } from "sonner"
+import { ThemeProvider } from "@/components/theme-provider"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -19,15 +21,21 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body className={inter.className}>
-        <div className="flex h-screen">
-          <Sidebar />
-          <div className="flex flex-col flex-1 overflow-hidden">
-            <Header />
-            <main className="flex-1 overflow-auto p-6">{children}</main>
-          </div>
-        </div>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="system"
+          enableSystem
+          disableTransitionOnChange
+        >
+          <AuthProvider>
+            <Toaster />
+            <AppLayout>
+              {children}
+            </AppLayout>
+          </AuthProvider>
+        </ThemeProvider>
       </body>
     </html>
   )

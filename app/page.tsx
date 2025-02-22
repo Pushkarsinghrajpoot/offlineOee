@@ -20,12 +20,15 @@ import {
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { ComposedChart } from "recharts"
-import { Activity, AlertTriangle, Droplets, Power } from "lucide-react"
+import { Activity, AlertTriangle, Droplets, Power, TrendingUp, Clock, Target, Shield } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import * as XLSX from 'xlsx'
 import html2canvas from 'html2canvas'
 import jsPDF from 'jspdf'
+import { withRoleCheck } from "@/components/auth/with-role-check"
+import { useAuth } from "@/context/auth-context"
+import { cn } from "@/lib/utils"
 
 const ProductionRateCard = () => {
   const [currentSpeed, setCurrentSpeed] = useState(0)
@@ -33,97 +36,98 @@ const ProductionRateCard = () => {
 
   useEffect(() => {
     const interval = setInterval(() => {
-      // Simulate changing speed data
       setCurrentSpeed((prev) => {
-        const change = Math.random() * 20 - 10 // Random change between -10 and 10
-        return Math.max(0, Math.min(targetSpeed, prev + change)) // Ensure speed is between 0 and targetSpeed
+        const change = Math.random() * 20 - 10
+        return Math.max(0, Math.min(targetSpeed, prev + change))
       })
-    }, 1000) // Update every second
+    }, 1000)
 
     return () => clearInterval(interval)
   }, [])
 
   const percentage = (currentSpeed / targetSpeed) * 100
-  const needleRotation = (percentage / 100) * 180 - 90 // -90 to 90 degrees
-
-  const getColor = (percent: number) => `hsl(${120 - percent * 1.2}, 100%, 50%)`
+  const needleRotation = (percentage / 100) * 180 - 90
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg font-medium">Line Speed</CardTitle>
+    <Card className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+      <CardHeader className="space-y-1">
+        <div className="flex items-center space-x-2">
+          <Target className="w-5 h-5 text-blue-500" />
+          <CardTitle className="text-lg font-semibold">Line Speed</CardTitle>
+        </div>
       </CardHeader>
       <CardContent>
-        <div className="flex flex-col items-center gap-2">
+        <div className="flex flex-col items-center gap-4">
           <div className="relative w-full h-48">
-            <svg viewBox="0 0 200 100" className="w-full h-full">
-            <defs>
-              {/* Gradient for the active path */}
-              <linearGradient id="activeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style={{ stopColor: '#22c55e' }} />
-                <stop offset="100%" style={{ stopColor: '#22c55e' }} />
-              </linearGradient>
-              {/* Gradient for the needle */}
-              <linearGradient id="needleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                <stop offset="0%" style={{ stopColor: '#ff3366' }} />
-                <stop offset="100%" style={{ stopColor: '#dc2626' }} />
-              </linearGradient>
-            </defs>
-              {/* Background arc with gradient */}
+            <svg viewBox="0 0 200 100" className="w-full h-full drop-shadow-lg">
+              <defs>
+                <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#22c55e" />
+                </linearGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
               <path
-            d="M20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke="#d1d5db" /* Light gray for visibility on white */
-            strokeWidth="20"
-            strokeLinecap="round"
-          />
-
-          {/* Active arc (green) */}
-          <path
-            d="M20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke="url(#activeGradient)"
-            strokeWidth="20"
-            strokeLinecap="round"
-            strokeDasharray={`${(percentage * 2.8)}, ${280}`}
-          />
-
-          {/* Needle with gradient */}
-          <g transform={`rotate(${needleRotation}, 100, 100)`}>
-            {/* Needle line */}
-            <line
-              x1="100"
-              y1="100"
-              x2="100"
-              y2="40"
-              stroke="url(#needleGradient)"
-              strokeWidth="3"
-            />
-            {/* Needle circle */}
-            <circle
-              cx="100"
-              cy="100"
-              r="8"
-              fill="url(#needleGradient)"
-            />
-          </g>
-
-          {/* Percentage text */}
-          <text 
-            x="100" 
-            y="80" 
-            textAnchor="middle" 
-            fontSize="24" 
-            fontWeight="bold" 
-            fill="black" /* Changed to black for visibility */
-          >
-            {Math.round(currentSpeed)} su/hr
-          </text>
-        </svg>
+                d="M20 100 A 80 80 0 0 1 180 100"
+                fill="none"
+                stroke="rgba(148, 163, 184, 0.2)"
+                strokeWidth="12"
+                strokeLinecap="round"
+              />
+              <path
+                d="M20 100 A 80 80 0 0 1 180 100"
+                fill="none"
+                stroke="url(#gaugeGradient)"
+                strokeWidth="12"
+                strokeLinecap="round"
+                strokeDasharray={`${(percentage * 2.8)}, ${280}`}
+                filter="url(#glow)"
+              />
+              <g transform={`rotate(${needleRotation}, 100, 100)`}>
+                <line
+                  x1="100"
+                  y1="100"
+                  x2="100"
+                  y2="30"
+                  stroke="#ef4444"
+                  strokeWidth="3"
+                  filter="url(#glow)"
+                />
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="6"
+                  fill="#ef4444"
+                  filter="url(#glow)"
+                />
+              </g>
+              <text 
+                x="100" 
+                y="75" 
+                textAnchor="middle" 
+                className="text-2xl font-bold fill-current"
+              >
+                {Math.round(currentSpeed)}
+              </text>
+              <text 
+                x="100" 
+                y="90" 
+                textAnchor="middle" 
+                className="text-sm fill-current opacity-60"
+              >
+                su/hr
+              </text>
+            </svg>
           </div>
-          <div className="flex justify-between w-full text-sm">
-            {/* <span>Actual Speed: {Math.round(currentSpeed)}</span> */}
-            <span className="text-lg font-medium text-gray-500 text-center">Target Speed: {targetSpeed} su/hr</span>
+          <div className="flex items-center justify-center space-x-2 text-sm font-medium text-gray-600 dark:text-gray-300">
+            <TrendingUp className="w-4 h-4" />
+            <span>Target: {targetSpeed} su/hr</span>
           </div>
         </div>
       </CardContent>
@@ -135,97 +139,156 @@ const OEECard = ({
   title,
   data,
 }: { title: string; data: { oee: number; availability: number; efficiency: number; quality: number } }) => (
-  <Card>
-    <CardHeader>
-      <CardTitle className="text-lg font-medium">{title}</CardTitle>
+  <Card className="p-2 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+    <CardHeader className="space-y-1">
+      <div className="flex items-center space-x-2">
+        <Activity className="w-5 h-5 text-indigo-500" />
+        <CardTitle className="text-lg font-semibold">{title}</CardTitle>
+      </div>
     </CardHeader>
-    <CardContent className="flex flex-col items-center gap-4">
-      <div className="relative h-32 w-32">
-        <svg className="h-32 w-32 -rotate-90 transform">
-          <circle className="text-muted stroke-current" strokeWidth="12" fill="transparent" r="58" cx="64" cy="64" />
+    <CardContent className="flex flex-col items-center gap-6">
+      <div className="relative h-36 w-36">
+        <svg className="h-36 w-36 -rotate-90 transform drop-shadow-lg">
+          <defs>
+            <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#3b82f6" />
+              <stop offset="100%" stopColor="#22c55e" />
+            </linearGradient>
+            <filter id="glow">
+              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+              <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+              </feMerge>
+            </filter>
+          </defs>
+          <circle 
+            className="text-gray-200 dark:text-gray-800 stroke-current" 
+            strokeWidth="10" 
+            fill="transparent" 
+            r="63" 
+            cx="72" 
+            cy="72" 
+          />
           <circle
             className="stroke-blue-500"
-            strokeWidth="12"
+            strokeWidth="10"
             strokeLinecap="round"
             fill="transparent"
-            r="58"
-            cx="64"
-            cy="64"
-            strokeDasharray={`${2 * Math.PI * 58}`}
-            strokeDashoffset={`${2 * Math.PI * 58 * (1 - data.oee / 100)}`}
+            r="63"
+            cx="72"
+            cy="72"
+            strokeDasharray={`${2 * Math.PI * 63}`}
+            strokeDashoffset={`${2 * Math.PI * 63 * (1 - data.oee / 100)}`}
             style={{
               transition: "stroke-dashoffset 0.5s ease",
+              filter: "drop-shadow(0 0 6px rgba(59, 130, 246, 0.5))"
             }}
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center">
-            <span className="text-3xl font-bold">{data.oee}%</span>
-            <p className="text-sm text-muted-foreground">OEE</p>
+            <span className="text-4xl font-bold text-blue-500">{data.oee}%</span>
+            <p className="text-sm text-gray-500 dark:text-gray-400">OEE</p>
           </div>
         </div>
       </div>
-      <div className="grid grid-cols-3 gap-2 w-full">
-        <div className="text-center">
-          <svg className="h-8 w-8 mx-auto -rotate-90 transform">
-            <circle className="text-muted stroke-current" strokeWidth="8" fill="transparent" r="12" cx="16" cy="16" />
-            <circle
-              className="stroke-green-500"
-              strokeWidth="8"
-              strokeLinecap="round"
-              fill="transparent"
-              r="12"
-              cx="16"
-              cy="16"
-              strokeDasharray={`${2 * Math.PI * 12}`}
-              strokeDashoffset={`${2 * Math.PI * 12 * (1 - data.availability / 100)}`}
-            />
-          </svg>
-          <span className="text-sm font-medium">{data.availability}%</span>
-          <p className="text-xs text-muted-foreground">AVA</p>
-        </div>
-        <div className="text-center">
-          <svg className="h-8 w-8 mx-auto -rotate-90 transform">
-            <circle className="text-muted stroke-current" strokeWidth="8" fill="transparent" r="12" cx="16" cy="16" />
-            <circle
-              className="stroke-yellow-500"
-              strokeWidth="8"
-              strokeLinecap="round"
-              fill="transparent"
-              r="12"
-              cx="16"
-              cy="16"
-              strokeDasharray={`${2 * Math.PI * 12}`}
-              strokeDashoffset={`${2 * Math.PI * 12 * (1 - data.efficiency / 100)}`}
-            />
-          </svg>
-          <span className="text-sm font-medium">{data.efficiency}%</span>
-          <p className="text-xs text-muted-foreground">EFF</p>
-        </div>
-        <div className="text-center">
-          <svg className="h-8 w-8 mx-auto -rotate-90 transform">
-            <circle className="text-muted stroke-current" strokeWidth="8" fill="transparent" r="12" cx="16" cy="16" />
-            <circle
-              className="stroke-blue-500"
-              strokeWidth="8"
-              strokeLinecap="round"
-              fill="transparent"
-              r="12"
-              cx="16"
-              cy="16"
-              strokeDasharray={`${2 * Math.PI * 12}`}
-              strokeDashoffset={`${2 * Math.PI * 12 * (1 - data.quality / 100)}`}
-            />
-          </svg>
-          <span className="text-sm font-medium">{data.quality}%</span>
-          <p className="text-xs text-muted-foreground">QUA</p>
-        </div>
+      <div className="grid grid-cols-3 gap-5  w-full">
+        {[
+          { 
+            label: "Availability", 
+            shortLabel: "AVA",
+            value: data.availability, 
+            lightColor: "#10b981",
+            darkColor: "#34d399",
+            gradientClass: "from-emerald-500 to-teal-400"
+          },
+          { 
+            label: "Efficiency", 
+            shortLabel: "EFF",
+            value: data.efficiency, 
+            lightColor: "#f59e0b",
+            darkColor: "#fbbf24",
+            gradientClass: "from-amber-500 to-yellow-400"
+          },
+          { 
+            label: "Quality", 
+            shortLabel: "QUA",
+            value: data.quality, 
+            lightColor: "#6366f1",
+            darkColor: "#818cf8",
+            gradientClass: "from-indigo-500 to-blue-400"
+          }
+        ].map((metric) => (
+          <div 
+            key={metric.label} 
+            className="flex flex-col items-center w-24 h-24  rounded-lg bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300"
+          >
+            <div className="relative h-14 w-14">
+              {/* Background circle */}
+              <div className="absolute inset-0 rounded-full bg-gray-100 dark:bg-gray-700"></div>
+              
+              {/* Main circle with gradient */}
+              <svg className="h-14 w-14 -rotate-90 transform relative z-10">
+                {/* Background ring */}
+                <circle 
+                  className="text-gray-200 dark:text-gray-600 stroke-current"
+                  strokeWidth="4" 
+                  fill="none" 
+                  r="25" 
+                  cx="28" 
+                  cy="28" 
+                />
+                
+                {/* Progress ring */}
+                <circle
+                  className="transition-all duration-1000 ease-out"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                  strokeLinecap="round"
+                  fill="none"
+                  r="25"
+                  cx="28"
+                  cy="28"
+                  strokeDasharray={`${2 * Math.PI * 25}`}
+                  strokeDashoffset={`${2 * Math.PI * 25 * (1 - metric.value / 100)}`}
+                  style={{
+                    color: `var(--metric-color, ${metric.lightColor})`,
+                    filter: "drop-shadow(0 0 2px currentColor)"
+                  }}
+                />
+              </svg>
+              
+              {/* Center content */}
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span 
+                  className="text-base font-bold leading-none"
+                  style={{
+                    color: `var(--metric-color, ${metric.lightColor})`
+                  }}
+                >
+                  {metric.value}%
+                </span>
+                <span className="text-[9px] font-medium text-gray-600 dark:text-gray-300">
+                  {metric.shortLabel}
+                </span>
+              </div>
+            </div>
+            
+            <span className="text-[10px] font-medium text-gray-700 dark:text-gray-200 mt-1.5">
+              {metric.label}
+            </span>
+          </div>
+        ))}
       </div>
     </CardContent>
   </Card>
 )
 
-export default function KPIDashboard() {
+function KPIDashboard() {
+  const { checkAccess } = useAuth();
+  const canExport = checkAccess('reports');
+
   const [selectedChart, setSelectedChart] = useState<string | null>(null)
   const chartRef = useRef<HTMLDivElement>(null)
 
@@ -287,36 +350,68 @@ export default function KPIDashboard() {
   const renderChartDialog = () => {
     return (
       <Dialog open={!!selectedChart} onOpenChange={() => setSelectedChart(null)}>
-        <DialogContent className="max-w-[90vw] w-[900px] h-[700px] flex flex-col">
-          <DialogHeader>
-            <DialogTitle>{selectedChart}</DialogTitle>
+        <DialogContent className="max-w-[90vw] w-[900px] h-[700px] flex flex-col bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
+          <DialogHeader className="border-b pb-4">
+            <div className="flex items-center space-x-2">
+              <Activity className="w-6 h-6 text-blue-500" />
+              <DialogTitle className="text-xl font-semibold">{selectedChart}</DialogTitle>
+            </div>
           </DialogHeader>
           <div ref={chartRef} className="flex-1 p-8">
             {selectedChart === "Linewise Performance" && (
               <ResponsiveContainer width="100%" height="100%">
                 <ComposedChart data={linewiseData} margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="line" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
+                  <XAxis 
+                    dataKey="line" 
+                    stroke="currentColor" 
+                    tick={{ fill: 'currentColor' }}
+                  />
                   <YAxis 
                     yAxisId="left" 
                     orientation="left"
                     domain={[0, 100]}
                     tickFormatter={(value) => `${value}%`}
+                    stroke="currentColor"
+                    tick={{ fill: 'currentColor' }}
                   />
                   <YAxis 
                     yAxisId="right" 
                     orientation="right"
                     domain={[0, 5]}
                     tickFormatter={(value) => `${value}%`}
+                    stroke="currentColor"
+                    tick={{ fill: 'currentColor' }}
                   />
-                  <Tooltip formatter={(value) => `${value}%`} />
-                  <Legend />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                    formatter={(value) => `${value}%`}
+                  />
+                  <Legend 
+                    verticalAlign="top"
+                    height={36}
+                    wrapperStyle={{
+                      paddingTop: '20px'
+                    }}
+                  />
+                  <defs>
+                    <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.8}/>
+                      <stop offset="100%" stopColor="#22c55e" stopOpacity={0.3}/>
+                    </linearGradient>
+                  </defs>
                   <Bar 
                     yAxisId="left" 
                     dataKey="oee" 
-                    fill="#22c55e" 
+                    fill="url(#barGradient)" 
                     name="OEE" 
                     barSize={40}
+                    radius={[4, 4, 0, 0]}
                   />
                   <Line
                     yAxisId="right"
@@ -324,7 +419,9 @@ export default function KPIDashboard() {
                     dataKey="waste"
                     stroke="#eab308"
                     name="Waste"
-                    strokeWidth={2}
+                    strokeWidth={3}
+                    dot={{ fill: '#eab308', strokeWidth: 2 }}
+                    activeDot={{ r: 6, strokeWidth: 2 }}
                   />
                 </ComposedChart>
               </ResponsiveContainer>
@@ -332,49 +429,146 @@ export default function KPIDashboard() {
             {selectedChart === "Downtime Contribution" && (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
+                  <defs>
+                    {downtimeData.map((entry, index) => (
+                      <linearGradient key={index} id={`pieGradient${index}`} x1="0%" y1="0%" x2="0%" y2="1">
+                        <stop offset="0%" stopColor={entry.color} stopOpacity={0.8}/>
+                        <stop offset="100%" stopColor={entry.color} stopOpacity={0.3}/>
+                      </linearGradient>
+                    ))}
+                  </defs>
                   <Pie
                     data={downtimeData}
                     cx="50%"
                     cy="50%"
-                    outerRadius={Math.min(window.innerWidth * 0.3, window.innerHeight * 0.3)}
+                    outerRadius={Math.min(window.innerWidth * 0.25, window.innerHeight * 0.25)}
+                    innerRadius={Math.min(window.innerWidth * 0.15, window.innerHeight * 0.15)}
+                    paddingAngle={2}
+                    dataKey="value"
+                    labelLine={false}
                     label={({ name, value }) => `${name}: ${value}%`}
                   >
                     {downtimeData.map((entry, index) => (
-                      <Cell key={index} fill={entry.color} />
+                      <Cell 
+                        key={index} 
+                        fill={`url(#pieGradient${index})`}
+                        stroke={entry.color}
+                        strokeWidth={2}
+                      />
                     ))}
                   </Pie>
-                  <Tooltip />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
                 </PieChart>
               </ResponsiveContainer>
             )}
             {selectedChart === "Energy & Utilities" && (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
                   <XAxis 
                     dataKey="hour" 
                     domain={[0, 23]}
                     tickFormatter={(value) => `${value}:00`}
+                    stroke="currentColor"
+                    tick={{ fill: 'currentColor' }}
                   />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Line type="monotone" dataKey="value" data={energyData.power} name="Power" stroke="#eab308" />
-                  <Line type="monotone" dataKey="value" data={energyData.water} name="Water" stroke="#3b82f6" />
-                  <Line type="monotone" dataKey="value" data={energyData.air} name="Air" stroke="#22c55e" />
+                  <YAxis 
+                    stroke="currentColor"
+                    tick={{ fill: 'currentColor' }}
+                  />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                  />
+                  <Legend 
+                    verticalAlign="top"
+                    height={36}
+                    wrapperStyle={{
+                      paddingTop: '20px'
+                    }}
+                  />
+                  <defs>
+                    <linearGradient id="powerGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#eab308" stopOpacity={0.8}/>
+                      <stop offset="100%" stopColor="#eab308" stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="waterGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8}/>
+                      <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.1}/>
+                    </linearGradient>
+                    <linearGradient id="airGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.8}/>
+                      <stop offset="100%" stopColor="#22c55e" stopOpacity={0.1}/>
+                    </linearGradient>
+                  </defs>
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    data={energyData.power} 
+                    name="Power" 
+                    stroke="#eab308"
+                    strokeWidth={3}
+                    dot={{ fill: '#eab308', strokeWidth: 2 }}
+                    activeDot={{ r: 6, strokeWidth: 2 }}
+                    fill="url(#powerGradient)"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    data={energyData.water} 
+                    name="Water" 
+                    stroke="#3b82f6"
+                    strokeWidth={3}
+                    dot={{ fill: '#3b82f6', strokeWidth: 2 }}
+                    activeDot={{ r: 6, strokeWidth: 2 }}
+                    fill="url(#waterGradient)"
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    data={energyData.air} 
+                    name="Air" 
+                    stroke="#22c55e"
+                    strokeWidth={3}
+                    dot={{ fill: '#22c55e', strokeWidth: 2 }}
+                    activeDot={{ r: 6, strokeWidth: 2 }}
+                    fill="url(#airGradient)"
+                  />
                 </LineChart>
               </ResponsiveContainer>
             )}
           </div>
           <DialogFooter className="border-t pt-4">
             <div className="flex justify-end gap-2 w-full">
-              <Button onClick={handlePrint} className="bg-purple-500 hover:bg-purple-600">
+              <Button 
+                onClick={handlePrint} 
+                className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+              >
                 Print Chart
               </Button>
-              <Button onClick={handleExportToExcel} className="bg-green-500 hover:bg-green-600">
-                Export to Excel
-              </Button>
-              <Button onClick={() => setSelectedChart(null)}>
+              {canExport && (
+                <Button 
+                  onClick={handleExportToExcel} 
+                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Export to Excel
+                </Button>
+              )}
+              <Button 
+                onClick={() => setSelectedChart(null)}
+                className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+              >
                 Close
               </Button>
             </div>
@@ -439,16 +633,17 @@ export default function KPIDashboard() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 p-6">
       <div className="grid gap-6 md:grid-cols-4">
         <OEECard title="Current Performance" data={oeeData.current} />
         <OEECard title="Month-to-Date" data={oeeData.mtd} />
         <OEECard title="Year-to-Date" data={oeeData.ytd} />
-
-        {/* Modified Linewise OEE & Waste Card with click handler */}
-        <Card className="cursor-pointer" onClick={() => setSelectedChart("Linewise Performance")}>
-          <CardHeader>
-            <CardTitle className="text-lg font-medium">Linewise OEE & Waste</CardTitle>
+        <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800" onClick={() => setSelectedChart("Linewise Performance")}>
+          <CardHeader className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <Target className="w-5 h-5 text-blue-500" />
+              <CardTitle className="text-lg font-semibold">Linewise OEE & Waste</CardTitle>
+            </div>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={300}>
@@ -490,76 +685,91 @@ export default function KPIDashboard() {
       </div>
 
       <div className="grid gap-6 md:grid-cols-4">
-        {/* Production Rate Cards */}
-        {Array.from({ length: 3 }).map((_, i) => (
+        {[1, 2, 3].map((_, i) => (
           <ProductionRateCard key={i} />
         ))}
-
-        {/* Safety & Incident Tracking */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-2xl font-bold text-center">Safe Days</CardTitle>
+        <Card className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+          <CardHeader className="space-y-1">
+            <div className="flex items-center space-x-2">
+              <Shield className="w-5 h-5 text-blue-500" />
+              <CardTitle className="text-lg font-semibold">Safe Days</CardTitle>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
-            {/* Safe Days Counter */}
             <div className="text-center">
               <div className="text-6xl font-bold mb-2">300</div>
-              {/* <div className="text-xl">Safe Days</div> */}
             </div>
-            
-            {/* Safety Metrics Table */}
-            <div className="mt-4">
-              <div className="grid gap-2">
-                <div className="flex justify-between items-center bg-blue-500 text-white p-2 rounded-md">
-                  <span>Number of First Aids</span>
-                  <span className="pr-2">2</span>
-                </div>
-                
-                <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
-                  <span>Lost Time Injury</span>
-                  <span className="pr-2 text-center">0</span>
-                </div>
-                
-                <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
-                  <span>Major Incident</span>
-                  <span className="pr-2 text-center">0</span>
-                </div>
-                
-                <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
-                  <span>Property Damage</span>
-                  <span className="pr-2 text-center">0</span>
-                </div>
+            <div className="grid gap-2">
+              <div className="flex justify-between items-center bg-blue-500 text-white p-2 rounded-md">
+                <span>Number of First Aids</span>
+                <span className="pr-2">2</span>
+              </div>
+              <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
+                <span>Lost Time Injury</span>
+                <span className="pr-2 text-center">0</span>
+              </div>
+              <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
+                <span>Major Incident</span>
+                <span className="pr-2 text-center">0</span>
+              </div>
+              <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
+                <span>Property Damage</span>
+                <span className="pr-2 text-center">0</span>
               </div>
             </div>
-
-
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-4">
         {/* Downtime Contribution Charts */}
         {Array.from({ length: 3 }).map((_, i) => (
-          <Card key={i}>
-            <CardHeader>
-              <CardTitle className="text-lg font-medium">Downtime Contribution</CardTitle>
+          <Card 
+            key={i} 
+            className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300"
+          >
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Clock className="w-4 h-4 text-rose-500" />
+                  <CardTitle className="text-base font-semibold">Downtime {i + 1}</CardTitle>
+                </div>
+                <Badge variant="secondary" className="text-xs">
+                  {downtimeData[i]?.value}%
+                </Badge>
+              </div>
             </CardHeader>
-            <CardContent>
-              <div className="cursor-pointer" onClick={() => setSelectedChart("Downtime Contribution")}>
-                <ResponsiveContainer width="100%" height={200}>
+            <CardContent className="pt-0 h-[160px]">
+              <div className="cursor-pointer h-full" onClick={() => setSelectedChart("Downtime Contribution")}>
+                <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={downtimeData}
                       cx="50%"
                       cy="50%"
-                      outerRadius={80}
-                      label={({ name, value }) => `${name}: ${value}%`}
+                      outerRadius={50}
+                      innerRadius={25}
+                      paddingAngle={2}
+                      dataKey="value"
                     >
                       {downtimeData.map((entry, index) => (
-                        <Cell key={index} fill={entry.color} />
+                        <Cell 
+                          key={index} 
+                          fill={entry.color}
+                          stroke="none"
+                          className="hover:opacity-80 transition-opacity"
+                        />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      }}
+                      formatter={(value: number) => [`${value}%`, 'Contribution']}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -567,36 +777,66 @@ export default function KPIDashboard() {
           </Card>
         ))}
 
-        {/* Energy & Utility Consumption */}
-        <Card className="cursor-pointer" onClick={() => setSelectedChart("Energy & Utilities")}>
-          <CardHeader>
-            <CardTitle className="text-lg font-medium">Energy & Utilities</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Power className="text-yellow-500" />
-                <span className="text-sm font-medium">Power Consumption</span>
+        {/* Energy & Utilities Card */}
+        <Card 
+          className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer" 
+          onClick={() => setSelectedChart("Energy & Utilities")}
+        >
+          <CardHeader className="pb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Droplets className="w-4 h-4 text-blue-500" />
+                <CardTitle className="text-base font-semibold">Energy & Utilities</CardTitle>
               </div>
-              <ResponsiveContainer width="100%" height={60}>
-                <LineChart data={energyData.power}>
-                  <Line type="monotone" dataKey="value" stroke="#eab308" dot={false} />
-                  <YAxis hide domain={[0, "dataMax + 20"]} />
-                </LineChart>
-              </ResponsiveContainer>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0 space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <Power className="w-4 h-4 text-amber-500" />
+                  <span className="text-xs font-medium">Power</span>
+                </div>
+                <span className="text-xs font-medium text-gray-500">24h Usage</span>
+              </div>
+              <div className="h-[40px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={energyData.power}>
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#f59e0b"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <YAxis hide domain={[0, "dataMax + 20"]} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Droplets className="text-blue-500" />
-                <span className="text-sm font-medium">Water Usage</span>
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <div className="flex items-center gap-2">
+                  <Droplets className="w-4 h-4 text-blue-500" />
+                  <span className="text-xs font-medium">Water</span>
+                </div>
+                <span className="text-xs font-medium text-gray-500">24h Usage</span>
               </div>
-              <ResponsiveContainer width="100%" height={60}>
-                <LineChart data={energyData.water}>
-                  <Line type="monotone" dataKey="value" stroke="#3b82f6" dot={false} />
-                  <YAxis hide domain={[0, "dataMax + 20"]} />
-                </LineChart>
-              </ResponsiveContainer>
+              <div className="h-[40px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={energyData.water}>
+                    <Line 
+                      type="monotone" 
+                      dataKey="value" 
+                      stroke="#3b82f6"
+                      strokeWidth={2}
+                      dot={false}
+                    />
+                    <YAxis hide domain={[0, "dataMax + 20"]} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -606,3 +846,8 @@ export default function KPIDashboard() {
     </div>
   )
 }
+
+export default withRoleCheck(KPIDashboard, {
+  feature: 'kpiDashboard',
+  requiredAccess: true
+});
