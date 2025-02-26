@@ -12,7 +12,7 @@ import {
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
   Legend,
@@ -29,6 +29,20 @@ import jsPDF from 'jspdf'
 import { withRoleCheck } from "@/components/auth/with-role-check"
 import { useAuth } from "@/context/auth-context"
 import { cn } from "@/lib/utils"
+import {
+  Tooltip as UITooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip"
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select"
+import {Gauge} from "lucide-react"
 
 const ProductionRateCard = () => {
   const [currentSpeed, setCurrentSpeed] = useState(0)
@@ -50,15 +64,15 @@ const ProductionRateCard = () => {
 
   return (
     <Card className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-      <CardHeader className="space-y-1">
+      <CardHeader className="space-y-1 p-2">
         <div className="flex items-center space-x-2">
-          <Target className="w-5 h-5 text-blue-500" />
-          <CardTitle className="text-lg font-semibold">Line Speed</CardTitle>
+          <Target className="w-4 h-4 text-blue-500" />
+          <CardTitle className="text-sm font-semibold">Speed</CardTitle>
         </div>
       </CardHeader>
-      <CardContent>
-        <div className="flex flex-col items-center gap-4">
-          <div className="relative w-full h-48">
+      <CardContent className="p-2">
+        <div className="flex flex-col items-center gap-2">
+          <div className="relative w-full h-32">
             <svg viewBox="0 0 200 100" className="w-full h-full drop-shadow-lg">
               <defs>
                 <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
@@ -111,7 +125,7 @@ const ProductionRateCard = () => {
                 x="100" 
                 y="75" 
                 textAnchor="middle" 
-                className="text-2xl font-bold fill-current"
+                className="text-xl font-bold fill-current"
               >
                 {Math.round(currentSpeed)}
               </text>
@@ -125,8 +139,8 @@ const ProductionRateCard = () => {
               </text>
             </svg>
           </div>
-          <div className="flex items-center justify-center space-x-2 text-sm font-medium text-gray-600 dark:text-gray-300">
-            <TrendingUp className="w-4 h-4" />
+          <div className="flex items-center justify-center space-x-2 text-xs font-medium text-gray-600 dark:text-gray-300">
+            <TrendingUp className="w-3.5 h-3.5" />
             <span>Target: {targetSpeed} su/hr</span>
           </div>
         </div>
@@ -135,159 +149,137 @@ const ProductionRateCard = () => {
   )
 }
 
-const OEECard = ({
-  title,
-  data,
-}: { title: string; data: { oee: number; availability: number; efficiency: number; quality: number } }) => (
-  <Card className="p-2 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-    <CardHeader className="space-y-1">
-      <div className="flex items-center space-x-2">
-        <Activity className="w-5 h-5 text-indigo-500" />
-        <CardTitle className="text-lg font-semibold">{title}</CardTitle>
-      </div>
-    </CardHeader>
-    <CardContent className="flex flex-col items-center gap-6">
-      <div className="relative h-36 w-36">
-        <svg className="h-36 w-36 -rotate-90 transform drop-shadow-lg">
-          <defs>
-            <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#3b82f6" />
-              <stop offset="100%" stopColor="#22c55e" />
-            </linearGradient>
-            <filter id="glow">
-              <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-              <feMerge>
-                <feMergeNode in="coloredBlur"/>
-                <feMergeNode in="SourceGraphic"/>
-              </feMerge>
-            </filter>
-          </defs>
-          <circle 
-            className="text-gray-200 dark:text-gray-800 stroke-current" 
-            strokeWidth="10" 
-            fill="transparent" 
-            r="63" 
-            cx="72" 
-            cy="72" 
-          />
-          <circle
-            className="stroke-blue-500"
-            strokeWidth="10"
-            strokeLinecap="round"
-            fill="transparent"
-            r="63"
-            cx="72"
-            cy="72"
-            strokeDasharray={`${2 * Math.PI * 63}`}
-            strokeDashoffset={`${2 * Math.PI * 63 * (1 - data.oee / 100)}`}
-            style={{
-              transition: "stroke-dashoffset 0.5s ease",
-              filter: "drop-shadow(0 0 6px rgba(59, 130, 246, 0.5))"
-            }}
-          />
-        </svg>
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="text-center">
-            <span className="text-4xl font-bold text-blue-500">{data.oee}%</span>
-            <p className="text-sm text-gray-500 dark:text-gray-400">OEE</p>
-          </div>
-        </div>
-      </div>
-      <div className="grid grid-cols-3 gap-5  w-full">
-        {[
-          { 
-            label: "Availability", 
-            shortLabel: "AVA",
-            value: data.availability, 
-            lightColor: "#10b981",
-            darkColor: "#34d399",
-            gradientClass: "from-emerald-500 to-teal-400"
-          },
-          { 
-            label: "Efficiency", 
-            shortLabel: "EFF",
-            value: data.efficiency, 
-            lightColor: "#f59e0b",
-            darkColor: "#fbbf24",
-            gradientClass: "from-amber-500 to-yellow-400"
-          },
-          { 
-            label: "Quality", 
-            shortLabel: "QUA",
-            value: data.quality, 
-            lightColor: "#6366f1",
-            darkColor: "#818cf8",
-            gradientClass: "from-indigo-500 to-blue-400"
-          }
-        ].map((metric) => (
-          <div 
-            key={metric.label} 
-            className="flex flex-col items-center w-24 h-24  rounded-lg bg-white dark:bg-gray-800 shadow-lg hover:shadow-xl transition-all duration-300"
-          >
-            <div className="relative h-14 w-14">
-              {/* Background circle */}
-              <div className="absolute inset-0 rounded-full bg-gray-100 dark:bg-gray-700"></div>
-              
-              {/* Main circle with gradient */}
-              <svg className="h-14 w-14 -rotate-90 transform relative z-10">
-                {/* Background ring */}
-                <circle 
-                  className="text-gray-200 dark:text-gray-600 stroke-current"
-                  strokeWidth="4" 
-                  fill="none" 
-                  r="25" 
-                  cx="28" 
-                  cy="28" 
-                />
-                
-                {/* Progress ring */}
-                <circle
-                  className="transition-all duration-1000 ease-out"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                  strokeLinecap="round"
-                  fill="none"
-                  r="25"
-                  cx="28"
-                  cy="28"
-                  strokeDasharray={`${2 * Math.PI * 25}`}
-                  strokeDashoffset={`${2 * Math.PI * 25 * (1 - metric.value / 100)}`}
-                  style={{
-                    color: `var(--metric-color, ${metric.lightColor})`,
-                    filter: "drop-shadow(0 0 2px currentColor)"
-                  }}
-                />
-              </svg>
-              
-              {/* Center content */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span 
-                  className="text-base font-bold leading-none"
-                  style={{
-                    color: `var(--metric-color, ${metric.lightColor})`
-                  }}
+function OEECard({ title, data }: { title: string, data: any }) {
+  const tooltipMessage = getTooltipMessage(title)
+
+  return (
+    <Card className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
+      <CardHeader className="py-2 px-3">
+        <div className="flex items-center space-x-1">
+          <Activity className="w-4 h-4 text-indigo-500" />
+          {tooltipMessage ? (
+            <TooltipProvider>
+              <UITooltip>
+                <TooltipTrigger asChild>
+                  <CardTitle className="text-sm font-semibold cursor-pointer">{title}</CardTitle>
+                </TooltipTrigger>
+                <TooltipContent 
+                  side="top" 
+                  className="bg-slate-900 text-white px-2 py-1 rounded-md text-xs font-medium max-w-[200px] text-center"
                 >
-                  {metric.value}%
-                </span>
-                <span className="text-[9px] font-medium text-gray-600 dark:text-gray-300">
-                  {metric.shortLabel}
-                </span>
+                  <p>{tooltipMessage}</p>
+                </TooltipContent>
+              </UITooltip>
+            </TooltipProvider>
+          ) : (
+            <CardTitle className="text-sm font-semibold">{title}</CardTitle>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="p-2">
+        <div className="flex items-start gap-2">
+          {/* OEE Gauge */}
+          <div className="relative h-24 w-24 flex-shrink-0">
+            <svg className="h-24 w-24 -rotate-90 transform">
+              <circle 
+                className="text-gray-200 dark:text-gray-800 stroke-current" 
+                strokeWidth="8" 
+                fill="transparent" 
+                r="42" 
+                cx="48" 
+                cy="48" 
+              />
+              <circle
+                className="stroke-blue-500"
+                strokeWidth="8"
+                strokeLinecap="round"
+                fill="transparent"
+                r="42"
+                cx="48"
+                cy="48"
+                strokeDasharray={`${2 * Math.PI * 42}`}
+                strokeDashoffset={`${2 * Math.PI * 42 * (1 - data.oee / 100)}`}
+                style={{
+                  transition: "stroke-dashoffset 0.5s ease",
+                  filter: "drop-shadow(0 0 4px rgba(59, 130, 246, 0.5))"
+                }}
+              />
+            </svg>
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-center">
+                <span className="text-2xl font-bold text-blue-500">{data.oee}%</span>
+                <p className="text-xs text-gray-500 dark:text-gray-400">OEE</p>
               </div>
             </div>
-            
-            <span className="text-[10px] font-medium text-gray-700 dark:text-gray-200 mt-1.5">
-              {metric.label}
-            </span>
           </div>
-        ))}
-      </div>
-    </CardContent>
-  </Card>
-)
+          
+          {/* Metrics */}
+          <div className="flex-1 space-y-2">
+            {[
+              { 
+                label: "AVA", 
+                value: data.availability, 
+                color: "#10b981",
+                bgColor: "bg-emerald-100 dark:bg-emerald-900/20"
+              },
+              { 
+                label: "EFF", 
+                value: data.efficiency, 
+                color: "#f59e0b",
+                bgColor: "bg-amber-100 dark:bg-amber-900/20"
+              },
+              { 
+                label: "QUA", 
+                value: data.quality, 
+                color: "#6366f1",
+                bgColor: "bg-indigo-100 dark:bg-indigo-900/20"
+              }
+            ].map((metric) => (
+              <div key={metric.label} className="flex items-center space-x-1">
+                <div className="w-8 text-xs font-medium">{metric.label}</div>
+                <div className="flex-1 h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full rounded-full"
+                    style={{ 
+                      width: `${metric.value}%`,
+                      backgroundColor: metric.color
+                    }}
+                  ></div>
+                </div>
+                <div 
+                  className={`text-xs font-medium px-1.5 py-0.5 rounded ${metric.bgColor}`}
+                  style={{ color: metric.color }}
+                >
+                  {metric.value}%
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function getTooltipMessage(title: string) {
+  switch (title) {
+    case "Current Performance":
+      return "Showing performance for today since 12 am"
+    case "Month-to-Date":
+      return "Showing performance for current month since 1st day of the month"
+    case "Year-to-Date":
+      return "Showing performance for current year since 1st day of January"
+    default:
+      return ""
+  }
+}
 
 function KPIDashboard() {
   const { checkAccess } = useAuth();
   const canExport = checkAccess('reports');
+  const [selectedCurrentLine, setSelectedCurrentLine] = useState("Overall");
+  const [selectedMTDLine, setSelectedMTDLine] = useState("Overall");
+  const [selectedYTDLine, setSelectedYTDLine] = useState("Overall");
 
   const [selectedChart, setSelectedChart] = useState<string | null>(null)
   const chartRef = useRef<HTMLDivElement>(null)
@@ -340,6 +332,16 @@ function KPIDashboard() {
         'Water': energyData.water[hour].value,
         'Air': energyData.air[hour].value
       }))
+    } else if (selectedChart === "Power Usage") {
+      data = energyData.power.map(item => ({
+        Hour: item.hour,
+        'Power Usage': item.value
+      }))
+    } else if (selectedChart === "Water Usage") {
+      data = energyData.water.map(item => ({
+        Hour: item.hour,
+        'Water Usage': item.value
+      }))
     }
 
     const ws = XLSX.utils.json_to_sheet(data)
@@ -383,7 +385,7 @@ function KPIDashboard() {
                     stroke="currentColor"
                     tick={{ fill: 'currentColor' }}
                   />
-                  <Tooltip 
+                  <RechartsTooltip 
                     contentStyle={{ 
                       backgroundColor: 'rgba(255, 255, 255, 0.9)',
                       borderRadius: '8px',
@@ -426,7 +428,7 @@ function KPIDashboard() {
                 </ComposedChart>
               </ResponsiveContainer>
             )}
-            {selectedChart === "Downtime Contribution" && (
+            {selectedChart === "Downtime" && (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <defs>
@@ -457,7 +459,7 @@ function KPIDashboard() {
                       />
                     ))}
                   </Pie>
-                  <Tooltip 
+                  <RechartsTooltip 
                     contentStyle={{ 
                       backgroundColor: 'rgba(255, 255, 255, 0.9)',
                       borderRadius: '8px',
@@ -483,7 +485,7 @@ function KPIDashboard() {
                     stroke="currentColor"
                     tick={{ fill: 'currentColor' }}
                   />
-                  <Tooltip 
+                  <RechartsTooltip 
                     contentStyle={{ 
                       backgroundColor: 'rgba(255, 255, 255, 0.9)',
                       borderRadius: '8px',
@@ -507,10 +509,7 @@ function KPIDashboard() {
                       <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.8}/>
                       <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.1}/>
                     </linearGradient>
-                    <linearGradient id="airGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#22c55e" stopOpacity={0.8}/>
-                      <stop offset="100%" stopColor="#22c55e" stopOpacity={0.1}/>
-                    </linearGradient>
+                    
                   </defs>
                   <Line 
                     type="monotone" 
@@ -534,16 +533,79 @@ function KPIDashboard() {
                     activeDot={{ r: 6, strokeWidth: 2 }}
                     fill="url(#waterGradient)"
                   />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+            {selectedChart === "Power Usage" && (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
+                  <XAxis 
+                    dataKey="hour" 
+                    domain={[0, 23]}
+                    tickFormatter={(value) => `${value}:00`}
+                    stroke="currentColor"
+                    tick={{ fill: 'currentColor' }}
+                  />
+                  <YAxis 
+                    stroke="currentColor"
+                    tick={{ fill: 'currentColor' }}
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                    formatter={(value) => `${value} kW`}
+                  />
                   <Line 
                     type="monotone" 
                     dataKey="value" 
-                    data={energyData.air} 
-                    name="Air" 
-                    stroke="#22c55e"
+                    data={energyData.power} 
+                    name="Power Usage" 
+                    stroke="#eab308"
                     strokeWidth={3}
-                    dot={{ fill: '#22c55e', strokeWidth: 2 }}
+                    dot={{ fill: '#eab308', strokeWidth: 2 }}
                     activeDot={{ r: 6, strokeWidth: 2 }}
-                    fill="url(#airGradient)"
+                  />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+            {selectedChart === "Water Usage" && (
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart margin={{ top: 20, right: 30, left: 20, bottom: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
+                  <XAxis 
+                    dataKey="hour" 
+                    domain={[0, 23]}
+                    tickFormatter={(value) => `${value}:00`}
+                    stroke="currentColor"
+                    tick={{ fill: 'currentColor' }}
+                  />
+                  <YAxis 
+                    stroke="currentColor"
+                    tick={{ fill: 'currentColor' }}
+                  />
+                  <RechartsTooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(148, 163, 184, 0.2)',
+                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                    }}
+                    formatter={(value) => `${value} m³`}
+                  />
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    data={energyData.water} 
+                    name="Water Usage" 
+                    stroke="#3b82f6"
+                    strokeWidth={3}
+                    dot={{ fill: '#3b82f6', strokeWidth: 2 }}
+                    activeDot={{ r: 6, strokeWidth: 2 }}
                   />
                 </LineChart>
               </ResponsiveContainer>
@@ -578,11 +640,69 @@ function KPIDashboard() {
     )
   }
 
-  const oeeData = {
-    current: { oee: 65, availability: 89, efficiency: 79, quality: 93 },
-    mtd: { oee: 65, availability: 89, efficiency: 79, quality: 93 },
-    ytd: { oee: 65, availability: 89, efficiency: 79, quality: 93 },
-  }
+  const lines = [
+    "Line 1",
+    "Line 2",
+    "Line 3",
+    "Line 4",
+    "Line 5",
+    "Line 6",
+    "Line 7",
+    "Line 8",
+    "Line 9",
+    "Line 10"
+  ];
+
+  // Current performance data for each line and overall
+  const currentLineData = {
+    "Line 1": { oee: 78, availability: 92, efficiency: 85, quality: 96 },
+    "Line 2": { oee: 72, availability: 88, efficiency: 83, quality: 93 },
+    "Line 3": { oee: 68, availability: 85, efficiency: 81, quality: 91 },
+    "Line 4": { oee: 75, availability: 90, efficiency: 84, quality: 94 },
+    "Line 5": { oee: 82, availability: 94, efficiency: 87, quality: 97 },
+    "Line 6": { oee: 70, availability: 87, efficiency: 82, quality: 92 },
+    "Line 7": { oee: 76, availability: 91, efficiency: 84, quality: 95 },
+    "Line 8": { oee: 79, availability: 93, efficiency: 86, quality: 96 },
+    "Line 9": { oee: 71, availability: 88, efficiency: 83, quality: 93 },
+    "Line 10": { oee: 77, availability: 92, efficiency: 85, quality: 95 },
+    "Overall": { oee: 75, availability: 90, efficiency: 84, quality: 94 }
+  };
+
+  // MTD performance data for each line and overall
+  const mtdLineData = {
+    "Line 1": { oee: 75, availability: 90, efficiency: 83, quality: 94 },
+    "Line 2": { oee: 73, availability: 89, efficiency: 82, quality: 93 },
+    "Line 3": { oee: 71, availability: 88, efficiency: 81, quality: 92 },
+    "Line 4": { oee: 80, availability: 93, efficiency: 86, quality: 96 },
+    "Line 5": { oee: 77, availability: 91, efficiency: 84, quality: 95 },
+    "Line 6": { oee: 72, availability: 88, efficiency: 82, quality: 93 },
+    "Line 7": { oee: 74, availability: 89, efficiency: 83, quality: 94 },
+    "Line 8": { oee: 76, availability: 90, efficiency: 84, quality: 95 },
+    "Line 9": { oee: 73, availability: 89, efficiency: 82, quality: 93 },
+    "Line 10": { oee: 75, availability: 90, efficiency: 83, quality: 94 },
+    "Overall": { oee: 74, availability: 89, efficiency: 83, quality: 94 }
+  };
+
+  // YTD data for individual lines
+  const ytdLineData = {
+    "Line 1": { oee: 77, availability: 92, efficiency: 85, quality: 96 },
+    "Line 2": { oee: 75, availability: 90, efficiency: 84, quality: 94 },
+    "Line 3": { oee: 73, availability: 89, efficiency: 83, quality: 93 },
+    "Line 4": { oee: 78, availability: 93, efficiency: 86, quality: 95 },
+    "Line 5": { oee: 80, availability: 94, efficiency: 87, quality: 97 },
+    "Line 6": { oee: 74, availability: 89, efficiency: 84, quality: 93 },
+    "Line 7": { oee: 76, availability: 91, efficiency: 85, quality: 94 },
+    "Line 8": { oee: 79, availability: 93, efficiency: 86, quality: 96 },
+    "Line 9": { oee: 75, availability: 90, efficiency: 84, quality: 94 },
+    "Line 10": { oee: 77, availability: 92, efficiency: 85, quality: 95 },
+    "Overall": { oee: 76, availability: 91, efficiency: 84, quality: 95 }
+  };
+
+  const performanceData = {
+    current: currentLineData[selectedCurrentLine],
+    mtd: mtdLineData[selectedMTDLine],
+    ytd: ytdLineData[selectedYTDLine]
+  };
 
   const linewiseData = [
     { line: "Line 1", oee: 56, waste: 1 },
@@ -633,42 +753,167 @@ function KPIDashboard() {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6">
-      <div className="grid gap-6 md:grid-cols-4">
-        <OEECard title="Current Performance" data={oeeData.current} />
-        <OEECard title="Month-to-Date" data={oeeData.mtd} />
-        <OEECard title="Year-to-Date" data={oeeData.ytd} />
+    <div className="flex flex-col gap-1.5 p-0.5">
+      <div className="grid gap-1.5 md:grid-cols-4">
+        <div>
+          <div className="mb-1.5">
+            <Select value={selectedCurrentLine} onValueChange={setSelectedCurrentLine}>
+              <SelectTrigger className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 border border-blue-200 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                <SelectValue placeholder="Select line for current performance" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Overall" className="cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 font-semibold">
+                  Overall Performance
+                </SelectItem>
+                <SelectItem value="divider" className="h-px bg-gray-200 dark:bg-gray-700 my-1" disabled />
+                {lines.map((line) => (
+                  <SelectItem key={line} value={line} className="cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700">
+                    {line}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <OEECard title="Current Performance" data={performanceData.current} />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="bg-slate-900 text-white px-3 py-2 rounded-md text-sm font-medium max-w-[220px] text-center">
+                <p>{selectedCurrentLine === "Overall" 
+                    ? "Showing combined current performance for all lines" 
+                    : `Showing current performance for ${selectedCurrentLine}`}</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
+        </div>
+
+        <div>
+          <div className="mb-1.5">
+            <Select value={selectedMTDLine} onValueChange={setSelectedMTDLine}>
+              <SelectTrigger className="w-full bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700 border border-green-200 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                <SelectValue placeholder="Select line for MTD" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Overall" className="cursor-pointer hover:bg-green-50 dark:hover:bg-gray-700 font-semibold">
+                  Overall Performance
+                </SelectItem>
+                <SelectItem value="divider" className="h-px bg-gray-200 dark:bg-gray-700 my-1" disabled />
+                {lines.map((line) => (
+                  <SelectItem key={line} value={line} className="cursor-pointer hover:bg-green-50 dark:hover:bg-gray-700">
+                    {line}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <OEECard title="Month-to-Date" data={performanceData.mtd} />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="bg-slate-900 text-white px-3 py-2 rounded-md text-sm font-medium max-w-[220px] text-center">
+                <p>{selectedMTDLine === "Overall" 
+                    ? "Showing combined MTD performance for all lines" 
+                    : `Showing MTD performance for ${selectedMTDLine}`}</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
+        </div>
+
+        <div>
+          <div className="mb-1.5">
+            <Select value={selectedYTDLine} onValueChange={setSelectedYTDLine}>
+              <SelectTrigger className="w-full bg-gradient-to-r from-purple-50 to-violet-50 dark:from-gray-800 dark:to-gray-700 border border-purple-200 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
+                <SelectValue placeholder="Select line for YTD" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Overall" className="cursor-pointer hover:bg-purple-50 dark:hover:bg-gray-700 font-semibold">
+                  Overall Performance
+                </SelectItem>
+                <SelectItem value="divider" className="h-px bg-gray-200 dark:bg-gray-700 my-1" disabled />
+                {lines.map((line) => (
+                  <SelectItem key={line} value={line} className="cursor-pointer hover:bg-purple-50 dark:hover:bg-gray-700">
+                    {line}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <TooltipProvider>
+            <UITooltip>
+              <TooltipTrigger asChild>
+                <div>
+                  <OEECard title="Year-to-Date" data={performanceData.ytd} />
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="top" className="bg-slate-900 text-white px-3 py-2 rounded-md text-sm font-medium max-w-[220px] text-center">
+                <p>{selectedYTDLine === "Overall" 
+                    ? "Showing combined YTD performance for all lines" 
+                    : `Showing YTD performance for ${selectedYTDLine}`}</p>
+              </TooltipContent>
+            </UITooltip>
+          </TooltipProvider>
+        </div>
+
         <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800" onClick={() => setSelectedChart("Linewise Performance")}>
-          <CardHeader className="space-y-1">
-            <div className="flex items-center space-x-2">
-              <Target className="w-5 h-5 text-blue-500" />
-              <CardTitle className="text-lg font-semibold">Linewise OEE & Waste</CardTitle>
+          <CardHeader className="py-1 px-2">
+            <div className="flex items-center space-x-1">
+              <Target className="w-3.5 h-3.5 text-blue-500" />
+              <CardTitle className="text-xs font-semibold">Linewise OEE & Waste</CardTitle>
             </div>
           </CardHeader>
-          <CardContent>
-            <ResponsiveContainer width="100%" height={300}>
-              <ComposedChart data={linewiseData} margin={{ top: 10, right: 0, left: 0, bottom: 5 }}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="line" />
+          <CardContent className="p-1">
+            <ResponsiveContainer width="100%" height={150}>
+              <ComposedChart data={linewiseData} margin={{ top: 5, right: 5, left: -15, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
+                <XAxis 
+                  dataKey="line" 
+                  stroke="currentColor"
+                  tick={{ fill: 'currentColor' }}
+                />
                 <YAxis 
                   yAxisId="left" 
                   orientation="left"
                   domain={[0, 100]}
                   tickFormatter={(value) => `${value}%`}
+                  stroke="currentColor"
+                  tick={{ fill: 'currentColor' }}
                 />
                 <YAxis 
                   yAxisId="right" 
                   orientation="right"
                   domain={[0, 5]}
                   tickFormatter={(value) => `${value}%`}
+                  stroke="currentColor"
+                  tick={{ fill: 'currentColor' }}
                 />
-                <Tooltip formatter={(value) => `${value}%`} />
+                <RechartsTooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(148, 163, 184, 0.2)',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}
+                  formatter={(value) => `${value}%`}
+                />
+                <defs>
+                  <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity={0.8}/>
+                    <stop offset="100%" stopColor="#22c55e" stopOpacity={0.3}/>
+                  </linearGradient>
+                </defs>
                 <Bar 
                   yAxisId="left" 
                   dataKey="oee" 
-                  fill="#22c55e" 
+                  fill="url(#barGradient)"
                   name="OEE" 
                   barSize={40}
+                  radius={[4, 4, 0, 0]}
                 />
                 <Line
                   yAxisId="right"
@@ -676,7 +921,9 @@ function KPIDashboard() {
                   dataKey="waste"
                   stroke="#eab308"
                   name="Waste"
-                  strokeWidth={2}
+                  strokeWidth={3}
+                  dot={{ fill: '#eab308', strokeWidth: 2 }}
+                  activeDot={{ r: 6, strokeWidth: 2 }}
                 />
               </ComposedChart>
             </ResponsiveContainer>
@@ -684,71 +931,72 @@ function KPIDashboard() {
         </Card>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-4">
+      <div className="grid gap-1.5 md:grid-cols-4">
         {[1, 2, 3].map((_, i) => (
           <ProductionRateCard key={i} />
         ))}
         <Card className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
-          <CardHeader className="space-y-1">
+          <CardHeader className="space-y-1 p-2">
             <div className="flex items-center space-x-2">
-              <Shield className="w-5 h-5 text-blue-500" />
-              <CardTitle className="text-lg font-semibold">Safe Days</CardTitle>
+              <Shield className="w-4 h-4 text-blue-500" />
+              <CardTitle className="text-sm font-semibold">Safe Days</CardTitle>
             </div>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-2 space-y-2">
             <div className="text-center">
-              <div className="text-6xl font-bold mb-2">300</div>
+              <div className="text-4xl font-bold mb-1">300</div>
             </div>
-            <div className="grid gap-2">
-              <div className="flex justify-between items-center bg-blue-500 text-white p-2 rounded-md">
+            <div className="grid gap-1">
+              <div className="flex justify-between items-center bg-blue-500 text-white p-1.5 rounded-md text-xs">
                 <span>Number of First Aids</span>
-                <span className="pr-2">2</span>
+                <span className="pr-1">2</span>
               </div>
-              <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
+              <div className="flex justify-between items-center bg-gray-200 p-1.5 rounded-md text-xs">
                 <span>Lost Time Injury</span>
-                <span className="pr-2 text-center">0</span>
+                <span className="pr-1 text-center">0</span>
               </div>
-              <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
+              <div className="flex justify-between items-center bg-gray-200 p-1.5 rounded-md text-xs">
                 <span>Major Incident</span>
-                <span className="pr-2 text-center">0</span>
+                <span className="pr-1 text-center">0</span>
               </div>
-              <div className="flex justify-between items-center bg-gray-200 p-2 rounded-md">
-                <span>Property Damage</span>
-                <span className="pr-2 text-center">0</span>
+              <div className="flex justify-between items-center bg-gray-200 p-1.5 rounded-md text-xs">
+                <span>Minor Incident</span>
+                <span className="pr-1 text-center">0</span>
               </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-2 md:grid-cols-4">
         {/* Downtime Contribution Charts */}
         {Array.from({ length: 3 }).map((_, i) => (
           <Card 
             key={i} 
             className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300"
+            onClick={() => setSelectedChart("Downtime")}
           >
-            <CardHeader className="pb-2">
+            <CardHeader className="pb-1 pt-1 px-2">
               <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Clock className="w-4 h-4 text-rose-500" />
-                  <CardTitle className="text-base font-semibold">Downtime {i + 1}</CardTitle>
+                <div className="flex items-center space-x-1">
+                  <Clock className="w-3.5 h-3.5 text-rose-500" />
+                  <CardTitle className="text-xs font-semibold">Downtime</CardTitle>
                 </div>
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs px-1.5 py-0">
                   {downtimeData[i]?.value}%
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="pt-0 h-[160px]">
-              <div className="cursor-pointer h-full" onClick={() => setSelectedChart("Downtime Contribution")}>
+            <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-1 p-1">
+              <div className="h-[120px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
                       data={downtimeData}
                       cx="50%"
                       cy="50%"
-                      outerRadius={50}
-                      innerRadius={25}
+                      outerRadius={60}
+                      innerRadius={30}
                       paddingAngle={2}
                       dataKey="value"
                     >
@@ -761,7 +1009,7 @@ function KPIDashboard() {
                         />
                       ))}
                     </Pie>
-                    <Tooltip 
+                    <RechartsTooltip 
                       contentStyle={{ 
                         backgroundColor: 'rgba(255, 255, 255, 0.9)',
                         borderRadius: '8px',
@@ -773,73 +1021,101 @@ function KPIDashboard() {
                   </PieChart>
                 </ResponsiveContainer>
               </div>
+              <div className="flex flex-col justify-center space-y-1">
+                {downtimeData.map((item, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-xs">{item.name}</span>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         ))}
 
         {/* Energy & Utilities Card */}
-        <Card 
-          className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer" 
-          onClick={() => setSelectedChart("Energy & Utilities")}
-        >
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
+        <div className="w-full bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 rounded-lg shadow-lg">
+          <div className="p-1.5 border-b">
+            <div className="flex items-center space-x-1">
+              <h2 className="text-sm font-semibold">Energy & Utilities Usage</h2>
+            </div>
+          </div>
+          
+          {/* Power Usage Section */}
+          <div 
+            className="p-1.5 border-b hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors duration-200"
+            onClick={() => setSelectedChart("Power Usage")}
+          >
+            <div className="flex items-center justify-between mb-1">
               <div className="flex items-center space-x-2">
-                <Droplets className="w-4 h-4 text-blue-500" />
-                <CardTitle className="text-base font-semibold">Energy & Utilities</CardTitle>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="pt-0 space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
+                <div className="p-1.5 bg-amber-100 dark:bg-amber-900/30 rounded-lg">
                   <Power className="w-4 h-4 text-amber-500" />
-                  <span className="text-xs font-medium">Power</span>
                 </div>
-                <span className="text-xs font-medium text-gray-500">24h Usage</span>
-              </div>
-              <div className="h-[40px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={energyData.power}>
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#f59e0b"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <YAxis hide domain={[0, "dataMax + 20"]} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="flex items-center space-x-3">
+                  <div>
+                    <h3 className="text-xs font-semibold">Power Usage</h3>
+                    <p className="text-xs text-gray-500">24h Consumption</p>
+                  </div>
+                  <div className="px-3 py-1 bg-amber-50 dark:bg-amber-900/20 rounded-md">
+                    <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">{energyData.power[energyData.power.length - 1].value} kW</span>
+                  </div>
+                </div>
               </div>
             </div>
+            <div className="h-[40px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={energyData.power}>
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke="#f59e0b"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <YAxis hide domain={[0, "dataMax + 20"]} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <div className="flex items-center gap-2">
+          {/* Water Usage Section */}
+          <div 
+            className="p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer transition-colors duration-200"
+            onClick={() => setSelectedChart("Water Usage")}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <div className="flex items-center space-x-3">
+                <div className="p-1.5 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
                   <Droplets className="w-4 h-4 text-blue-500" />
-                  <span className="text-xs font-medium">Water</span>
                 </div>
-                <span className="text-xs font-medium text-gray-500">24h Usage</span>
-              </div>
-              <div className="h-[40px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={energyData.water}>
-                    <Line 
-                      type="monotone" 
-                      dataKey="value" 
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      dot={false}
-                    />
-                    <YAxis hide domain={[0, "dataMax + 20"]} />
-                  </LineChart>
-                </ResponsiveContainer>
+                <div className="flex items-center space-x-3">
+                  <div>
+                    <h3 className="text-xs font-semibold">Water Usage</h3>
+                    <p className="text-xs text-gray-500">24h Consumption</p>
+                  </div>
+                  <div className="px-3 py-1 bg-blue-50 dark:bg-blue-900/20 rounded-md">
+                    <span className="text-xs font-semibold text-blue-600 dark:text-blue-400">{energyData.water[energyData.water.length - 1].value} m³</span>
+                  </div>
+                </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
+            <div className="h-[40px]">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={energyData.water}>
+                  <Line 
+                    type="monotone" 
+                    dataKey="value" 
+                    stroke="#3b82f6"
+                    strokeWidth={2}
+                    dot={false}
+                  />
+                  <YAxis hide domain={[0, "dataMax + 20"]} />
+                </LineChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+
       </div>
 
       {renderChartDialog()}
