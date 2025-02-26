@@ -150,30 +150,42 @@ const ProductionRateCard = () => {
 }
 
 function OEECard({ title, data }: { title: string, data: any }) {
-  const tooltipMessage = getTooltipMessage(title)
+  const [showPopup, setShowPopup] = useState(false);
+  
+  const getPopupMessage = () => {
+    switch (title) {
+      case "Current Performance":
+        return "Showing performance for today since 12 am";
+      case "Month-to-Date":
+        return "Showing performance for current month since 1st day of the month";
+      case "Year-to-Date":
+        return "Showing performance for current year since 1st day of January";
+      default:
+        return "";
+    }
+  };
 
   return (
     <Card className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader className="py-2 px-3">
         <div className="flex items-center space-x-1">
           <Activity className="w-4 h-4 text-indigo-500" />
-          {tooltipMessage ? (
-            <TooltipProvider>
-              <UITooltip>
-                <TooltipTrigger asChild>
-                  <CardTitle className="text-sm font-semibold cursor-pointer">{title}</CardTitle>
-                </TooltipTrigger>
-                <TooltipContent 
-                  side="top" 
-                  className="bg-slate-900 text-white px-2 py-1 rounded-md text-xs font-medium max-w-[200px] text-center"
-                >
-                  <p>{tooltipMessage}</p>
-                </TooltipContent>
-              </UITooltip>
-            </TooltipProvider>
-          ) : (
-            <CardTitle className="text-sm font-semibold">{title}</CardTitle>
-          )}
+          <div className="relative">
+            <CardTitle 
+              className="text-sm font-semibold cursor-help"
+              onMouseEnter={() => setShowPopup(true)}
+              onMouseLeave={() => setShowPopup(false)}
+            >
+              {title}
+            </CardTitle>
+            {showPopup && (
+              <div className="absolute z-50 left-full top-1/2 -translate-y-1/2 ml-2 px-2 py-1 bg-slate-800/90 text-white rounded text-xs max-w-[740px] shadow-md border border-slate-700">
+                <p>
+                  {getPopupMessage()}
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-2">
@@ -259,19 +271,6 @@ function OEECard({ title, data }: { title: string, data: any }) {
       </CardContent>
     </Card>
   )
-}
-
-function getTooltipMessage(title: string) {
-  switch (title) {
-    case "Current Performance":
-      return "Showing performance for today since 12 am"
-    case "Month-to-Date":
-      return "Showing performance for current month since 1st day of the month"
-    case "Year-to-Date":
-      return "Showing performance for current year since 1st day of January"
-    default:
-      return ""
-  }
 }
 
 function KPIDashboard() {
@@ -466,6 +465,11 @@ function KPIDashboard() {
                       border: '1px solid rgba(148, 163, 184, 0.2)',
                       boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                     }}
+                    formatter={(value: number, name: string, props: any) => {
+                      // Get the actual name from the data
+                      const entry = downtimeData.find(item => item.value === value);
+                      return [`${value}%`, entry ? entry.name : name];
+                    }}
                   />
                 </PieChart>
               </ResponsiveContainer>
@@ -476,7 +480,7 @@ function KPIDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
                   <XAxis 
                     dataKey="hour" 
-                    domain={[0, 23]}
+                    domain={[0, 24]}
                     tickFormatter={(value) => `${value}:00`}
                     stroke="currentColor"
                     tick={{ fill: 'currentColor' }}
@@ -542,7 +546,7 @@ function KPIDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
                   <XAxis 
                     dataKey="hour" 
-                    domain={[0, 23]}
+                    domain={[0, 24]}
                     tickFormatter={(value) => `${value}:00`}
                     stroke="currentColor"
                     tick={{ fill: 'currentColor' }}
@@ -579,7 +583,7 @@ function KPIDashboard() {
                   <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
                   <XAxis 
                     dataKey="hour" 
-                    domain={[0, 23]}
+                    domain={[0,24]}
                     tickFormatter={(value) => `${value}:00`}
                     stroke="currentColor"
                     tick={{ fill: 'currentColor' }}
@@ -650,7 +654,8 @@ function KPIDashboard() {
     "Line 7",
     "Line 8",
     "Line 9",
-    "Line 10"
+    "Line 10",
+    "Overall"
   ];
 
   // Current performance data for each line and overall
@@ -712,6 +717,9 @@ function KPIDashboard() {
     { line: "Line 5", oee: 82, waste: 3 },
     { line: "Line 6", oee: 45, waste: 3 },
     { line: "Line 7", oee: 85, waste: 2 },
+    { line: "Line 8", oee: 82, waste: 3 },
+    { line: "Line 9", oee: 45, waste: 3 },
+    { line: "Line 10", oee: 85, waste: 2 },
   ]
 
   const productionRate = {
@@ -738,15 +746,15 @@ function KPIDashboard() {
   }
 
   const energyData = {
-    power: Array.from({ length: 24 }, (_, i) => ({
+    power: Array.from({ length: 25 }, (_, i) => ({
       hour: i,
       value: Math.floor(Math.random() * 100) + 50,
     })),
-    water: Array.from({ length: 24 }, (_, i) => ({
+    water: Array.from({ length: 25 }, (_, i) => ({
       hour: i,
       value: Math.floor(Math.random() * 50) + 20,
     })),
-    air: Array.from({ length: 24 }, (_, i) => ({
+    air: Array.from({ length: 25 }, (_, i) => ({
       hour: i,
       value: Math.floor(Math.random() * 30) + 70,
     })),
@@ -754,7 +762,7 @@ function KPIDashboard() {
 
   return (
     <div className="flex flex-col gap-1.5 p-0.5">
-      <div className="grid gap-1.5 md:grid-cols-4">
+      <div className="grid gap-1.5 md:grid-cols-4 pt-2">
         <div>
           <div className="mb-1.5">
             <Select value={selectedCurrentLine} onValueChange={setSelectedCurrentLine}>
@@ -774,20 +782,7 @@ function KPIDashboard() {
               </SelectContent>
             </Select>
           </div>
-          <TooltipProvider>
-            <UITooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <OEECard title="Current Performance" data={performanceData.current} />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="bg-slate-900 text-white px-3 py-2 rounded-md text-sm font-medium max-w-[220px] text-center">
-                <p>{selectedCurrentLine === "Overall" 
-                    ? "Showing combined current performance for all lines" 
-                    : `Showing current performance for ${selectedCurrentLine}`}</p>
-              </TooltipContent>
-            </UITooltip>
-          </TooltipProvider>
+          <OEECard title="Current Performance" data={performanceData.current} />
         </div>
 
         <div>
@@ -809,20 +804,7 @@ function KPIDashboard() {
               </SelectContent>
             </Select>
           </div>
-          <TooltipProvider>
-            <UITooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <OEECard title="Month-to-Date" data={performanceData.mtd} />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="bg-slate-900 text-white px-3 py-2 rounded-md text-sm font-medium max-w-[220px] text-center">
-                <p>{selectedMTDLine === "Overall" 
-                    ? "Showing combined MTD performance for all lines" 
-                    : `Showing MTD performance for ${selectedMTDLine}`}</p>
-              </TooltipContent>
-            </UITooltip>
-          </TooltipProvider>
+          <OEECard title="Month-to-Date" data={performanceData.mtd} />
         </div>
 
         <div>
@@ -844,20 +826,7 @@ function KPIDashboard() {
               </SelectContent>
             </Select>
           </div>
-          <TooltipProvider>
-            <UITooltip>
-              <TooltipTrigger asChild>
-                <div>
-                  <OEECard title="Year-to-Date" data={performanceData.ytd} />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="bg-slate-900 text-white px-3 py-2 rounded-md text-sm font-medium max-w-[220px] text-center">
-                <p>{selectedYTDLine === "Overall" 
-                    ? "Showing combined YTD performance for all lines" 
-                    : `Showing YTD performance for ${selectedYTDLine}`}</p>
-              </TooltipContent>
-            </UITooltip>
-          </TooltipProvider>
+          <OEECard title="Year-to-Date" data={performanceData.ytd} />
         </div>
 
         <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800" onClick={() => setSelectedChart("Linewise Performance")}>
@@ -951,15 +920,15 @@ function KPIDashboard() {
                 <span>Number of First Aids</span>
                 <span className="pr-1">2</span>
               </div>
-              <div className="flex justify-between items-center bg-gray-200 p-1.5 rounded-md text-xs">
+              <div className="flex justify-between items-center bg-blue-500 text-white p-1.5 rounded-md text-xs">
                 <span>Lost Time Injury</span>
                 <span className="pr-1 text-center">0</span>
               </div>
-              <div className="flex justify-between items-center bg-gray-200 p-1.5 rounded-md text-xs">
+              <div className="flex justify-between items-center bg-blue-500 text-white p-1.5 rounded-md text-xs">
                 <span>Major Incident</span>
                 <span className="pr-1 text-center">0</span>
               </div>
-              <div className="flex justify-between items-center bg-gray-200 p-1.5 rounded-md text-xs">
+              <div className="flex justify-between items-center bg-blue-500 text-white p-1.5 rounded-md text-xs">
                 <span>Minor Incident</span>
                 <span className="pr-1 text-center">0</span>
               </div>
@@ -1016,7 +985,11 @@ function KPIDashboard() {
                         border: '1px solid rgba(148, 163, 184, 0.2)',
                         boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                       }}
-                      formatter={(value: number) => [`${value}%`, 'Contribution']}
+                      formatter={(value: number, name: string, props: any) => {
+                        // Get the actual name from the data
+                        const entry = downtimeData.find(item => item.value === value);
+                        return [`${value}%`, entry ? entry.name : name];
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>

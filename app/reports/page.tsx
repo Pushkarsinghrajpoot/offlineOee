@@ -36,21 +36,6 @@ function ReportsPage() {
     console.log("Exporting to XLS...")
   }
 
-  const renderReport = () => {
-    switch (selectedReport) {
-      case "oee":
-        return <OEEReport />
-      case "delay":
-        return <DelayAnalysisReport />
-      default:
-        return (
-          <div className="flex items-center justify-center h-[400px] text-muted-foreground">
-            Report under development
-          </div>
-        )
-    }
-  }
-
   return (
     <div className="space-y-6">
       <Card>
@@ -163,7 +148,23 @@ function ReportsPage() {
                           </Select>
                         </div>
                       </div>
-                      <div className="transition-all duration-300 ease-in-out">{renderReport()}</div>
+                      {selectedReport === "oee" && (
+                        <OEEReport
+                          line={selectedLine}
+                          startDate={startDate}
+                          endDate={endDate}
+                          shift={shift}
+                          reportType={reportType}
+                        />
+                      )}
+                      {selectedReport === "delay" && (
+                        <DelayAnalysisReport
+                          line={selectedLine}
+                          startDate={startDate}
+                          endDate={endDate}
+                          shift={shift}
+                        />
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -172,26 +173,6 @@ function ReportsPage() {
           </div>
         </CardContent>
       </Card>
-
-      <div className="mt-6">
-        {selectedReport === "oee" && (
-          <OEEReport
-            line={selectedLine}
-            startDate={startDate}
-            endDate={endDate}
-            shift={shift}
-            reportType={reportType}
-          />
-        )}
-        {selectedReport === "delay" && (
-          <DelayAnalysisReport
-            line={selectedLine}
-            startDate={startDate}
-            endDate={endDate}
-            shift={shift}
-          />
-        )}
-      </div>
     </div>
   )
 }
