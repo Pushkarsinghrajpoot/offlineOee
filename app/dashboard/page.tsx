@@ -3,27 +3,44 @@
 import { useState, useRef, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
+import { Button } from "@/components/ui/button"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import Link  from "next/link"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Activity, BarChart3, } from "lucide-react"
+import { withRoleCheck } from "@/components/auth/with-role-check"
+import  {Input} from "@/components/ui/input"
+import  {Label} from "@/components/ui/label"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { CircularProgressBar } from "@/components/CircularProgressBar"
+import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   XAxis,
   YAxis,
+  Legend,
 } from "@/components/ui/chart"
-import { CircularProgressBar } from "@/components/CircularProgressBar"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Input } from "@/components/ui/input"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-import { Button } from "@/components/ui/button"
-import * as XLSX from 'xlsx'
-import html2canvas from 'html2canvas'
-import jsPDF from 'jspdf'
-import { Link } from "lucide-react"
+import dynamic from 'next/dynamic'
+import { AlertTriangle, Droplets, Power, TrendingUp, Clock, Target, Shield } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+
+const ChartExportDialog = dynamic(() => import('@/components/chart-export-dialog').then(mod => mod.ChartExportDialog), {
+  ssr: false,
+})
 
 const ProductionGauge = () => {
   const [currentSpeed, setCurrentSpeed] = useState(0)
@@ -118,13 +135,16 @@ export default function ProductionDashboard() {
   }
 
   const downtimeData = [
-    { name: "Speed Loss", value: 5, color: "#4299e1" },
-    { name: "Downtime", value: 32, color: "#48bb78" },
-    { name: "White Time", value: 23, color: "#a0aec0" },
-    { name: "External Cause", value: 23, color: "#f56565" },
-    { name: "Grade Change", value: 5, color: "#ed8936" },
-    { name: "Maintenance", value: 12, color: "#ecc94b" },
+    { name: "Downtime", value: 25, color: "#FF69B4" },
+    { name: "Speed Loss", value: 15, color: "#6C5CE7" },
+    { name: "Grade Change", value: 20, color: "#A29BFE" },
+    { name: "External Cause", value: 5, color: "#FFD700" },
+    { name: "White Time", value: 15, color: "#81ECEC" },
+    { name: "Maintenance", value: 20, color: "#74B9FF" },
   ]
+
+  // Calculate total downtime
+  const totalDowntime = downtimeData.reduce((total, item) => total + item.value, 0);
 
   const timeAccountData = [
     { name: "Speed Loss", minutes: 15 },
@@ -147,98 +167,81 @@ export default function ProductionDashboard() {
 
   const handlePrint = async () => {
     if (chartRef.current && selectedChart) {
-      const canvas = await html2canvas(chartRef.current)
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF()
-      pdf.addImage(imgData, 'PNG', 10, 10, 190, 100)
-      pdf.save(`${selectedChart.toLowerCase().replace(/\s+/g, '_')}.pdf`)
+      const { exportChartToPDF } = await import('@/utils/chart-export');
+      exportChartToPDF({
+        title: selectedChart,
+        data: [], // Not needed for PDF export
+        chartRef: chartRef,
+        clientName: "PixWingAi Client"
+      });
     }
   }
 
   const handleExportToExcel = () => {
-    if (selectedChart === "Down-time Contribution") {
-      const wb = XLSX.utils.book_new()
-      const ws = XLSX.utils.json_to_sheet(downtimeData)
-      XLSX.utils.book_append_sheet(wb, ws, 'Downtime Data')
-      XLSX.writeFile(wb, 'downtime_contribution.xlsx')
+    if (!selectedChart) return;
+    
+    let data: any[] = [];
+    let title = selectedChart;
+    
+    if (selectedChart === "Downtime") {
+      title = "Downtime Contribution";
+      data = downtimeData.map(item => ({
+        'Downtime Category': item.name,
+        'Percentage (%)': item.value
+      }));
     } else if (selectedChart === "Time Account") {
-      const wb = XLSX.utils.book_new()
-      const ws = XLSX.utils.json_to_sheet(timeAccountData)
-      XLSX.utils.book_append_sheet(wb, ws, 'Time Account Data')
-      XLSX.writeFile(wb, 'time_account.xlsx')
+      data = timeAccountData.map(item => ({
+        'Category': item.name,
+        'Minutes': item.minutes
+      }));
     } else if (selectedChart === "Hourly Production") {
-      const wb = XLSX.utils.book_new()
-      const ws = XLSX.utils.json_to_sheet(hourlyProductionData)
-      XLSX.utils.book_append_sheet(wb, ws, 'Hourly Production Data')
-      XLSX.writeFile(wb, 'hourly_production.xlsx')
+      data = hourlyProductionData.map(item => ({
+        'Hour': item.hour,
+        'GPC': item.gpc,
+        'Waste': item.waste
+      }));
     }
+    
+    import('@/utils/chart-export').then(({ exportChartToExcel }) => {
+      exportChartToExcel({
+        title: title,
+        data: data,
+        chartRef: chartRef,
+        clientName: "PixWingAi Client"
+      });
+    });
   }
 
-  const renderChartDialog = () => {
-    return (
-      <Dialog open={!!selectedChart} onOpenChange={() => setSelectedChart(null)}>
-        <DialogContent className="max-w-[90vw] w-[800px] h-[600px]">
-          <DialogHeader>
-            <DialogTitle>{selectedChart}</DialogTitle>
-          </DialogHeader>
-          <div ref={chartRef} className="w-full h-full">
-            {selectedChart === "Down-time Contribution" && (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={downtimeData}
-                    cx="50%"
-                    cy="50%"
-                    outerRadius={200}
-                    dataKey="value"
-                    label={({ name, value }) => `${name}: ${value}%`}
-                  >
-                    {downtimeData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-            {selectedChart === "Time Account" && (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={timeAccountData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis type="number" />
-                  <YAxis dataKey="name" type="category" width={100} />
-                  <Tooltip />
-                  <Bar dataKey="minutes" fill="#3b82f6" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-            {selectedChart === "Hourly Production" && (
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={hourlyProductionData}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="hour" />
-                  <YAxis />
-                  <Tooltip />
-                  <Legend />
-                  <Bar dataKey="gpc" fill="#3b82f6" name="GPC" />
-                  <Bar dataKey="waste" fill="#ef4444" name="Waste" />
-                </BarChart>
-              </ResponsiveContainer>
-            )}
-          </div>
-          <DialogFooter className="mt-4 border-t pt-4">
-            <Button onClick={handlePrint} className="bg-purple-500 hover:bg-purple-600">
-              Print Chart
-            </Button>
-            <Button onClick={handleExportToExcel} className="bg-green-500 hover:bg-green-600">
-              Export to Excel
-            </Button>
-            <Button onClick={() => setSelectedChart(null)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    )
-  }
+  const [chartSize, setChartSize] = useState({ width: 150, height: 80, cardWidth: 60, cardHeight: 30 });
+
+  // Update chart size based on window size
+  useEffect(() => {
+    const handleResize = () => {
+      // For the dialog
+      const dialogWidth = Math.min(window.innerWidth * 0.25, 200);
+      const dialogHeight = Math.min(window.innerHeight * 0.15, 120);
+      
+      // For the card
+      const cardWidth = 60;
+      const cardHeight = 30;
+      
+      setChartSize({ 
+        width: dialogWidth, 
+        height: dialogHeight,
+        cardWidth: cardWidth,
+        cardHeight: cardHeight
+      });
+    };
+
+    // Set initial size
+    handleResize();
+
+    // Add event listener
+    window.addEventListener('resize', handleResize);
+    
+    // Cleanup
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -327,29 +330,59 @@ export default function ProductionDashboard() {
           </Card>
 
           {/* Downtime Contribution */}
-          <Card className="col-span-4">
-            <CardHeader>
-              <CardTitle>Down-time Contribution</CardTitle>
+          <Card 
+            className="bg-white shadow-sm col-span-3"
+            onClick={() => setSelectedChart("Downtime")}
+          >
+            <CardHeader className="pb-0 pt-2">
+              <CardTitle className="text-base font-medium">Downtime Contribution</CardTitle>
             </CardHeader>
-            <CardContent>
-              <div className="cursor-pointer" onClick={() => setSelectedChart("Down-time Contribution")}>
-                <ResponsiveContainer width="100%" height={200}>
-                  <PieChart>
+            <CardContent className="grid grid-cols-2 gap-4 p-4">
+              <div className="h-[180px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                     <Pie
                       data={downtimeData}
                       cx="50%"
                       cy="50%"
                       outerRadius={80}
+                      innerRadius={50}
+                      paddingAngle={2}
                       dataKey="value"
-                      label={({ name, value }) => `${name}: ${value}%`}
                     >
                       {downtimeData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell 
+                          key={index} 
+                          fill={entry.color}
+                          stroke="white"
+                          strokeWidth={1}
+                        />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <RechartsTooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                        padding: '4px 8px',
+                        fontSize: '12px'
+                      }}
+                      formatter={(value: number, name: string, props: any) => {
+                        const entry = downtimeData.find(item => item.value === value);
+                        return [`${value}%`, entry ? entry.name : name];
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
+              </div>
+              <div className="flex flex-col justify-center space-y-2">
+                {downtimeData.map((item, index) => (
+                  <div key={index} className="flex items-center gap-2">
+                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-sm text-gray-600">{item.name}</span>
+                  </div>
+                ))}
               </div>
             </CardContent>
           </Card>
@@ -380,7 +413,7 @@ export default function ProductionDashboard() {
                 </div>
               </div>
             </CardContent>
-            <Link path="/downtime-tracker">
+            <Link href="/downtime-tracker">
             <Button className="w-full mt-4">Downtime Tracker</Button>
             </Link>
           </Card>
@@ -397,7 +430,7 @@ export default function ProductionDashboard() {
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="hour" />
                     <YAxis />
-                    <Tooltip />
+                    <RechartsTooltip />
                     <Legend />
                     <Bar dataKey="gpc" fill="#3b82f6" name="GPC" />
                     <Bar dataKey="waste" fill="#ef4444" name="Waste" />
@@ -406,12 +439,120 @@ export default function ProductionDashboard() {
               </div>
             </CardContent>
           </Card>
-
-          {/* Temperature Chart */}
+          Temperature Chart
         </div>
       </div>
 
-      {renderChartDialog()}
+      {/* Chart Dialog */}
+      {selectedChart && (
+        <Dialog open={!!selectedChart} onOpenChange={(open) => !open && setSelectedChart(null)}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
+            <DialogHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Activity className="w-6 h-6 text-blue-500" />
+                  <DialogTitle className="text-xl font-semibold">
+                    {selectedChart === "Downtime" ? "Downtime Contribution" : selectedChart}
+                  </DialogTitle>
+                </div>
+              </div>
+            </DialogHeader>
+            <div ref={chartRef} className="flex-1 p-8">
+              {selectedChart === "Downtime" && (
+                <ResponsiveContainer width="100%" height={400}>
+                  <PieChart>
+                    <Pie
+                      data={downtimeData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={150}
+                      innerRadius={100}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {downtimeData.map((entry, index) => (
+                        <Cell 
+                          key={index} 
+                          fill={entry.color}
+                          stroke="white"
+                          strokeWidth={2}
+                        />
+                      ))}
+                    </Pie>
+                    <Legend
+                      layout="vertical"
+                      verticalAlign="middle"
+                      align="right"
+                      iconType="circle"
+                      iconSize={10}
+                    />
+                    <RechartsTooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: '4px',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
+                        padding: '4px 8px',
+                        fontSize: '12px'
+                      }}
+                      formatter={(value: number, name: string, props: any) => {
+                        const entry = downtimeData.find(item => item.value === value);
+                        return [`${value}%`, entry ? entry.name : name];
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+              {selectedChart === "Time Account" && (
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={timeAccountData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" width={100} />
+                    <RechartsTooltip />
+                    <Bar dataKey="minutes" fill="#3b82f6" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              {selectedChart === "Hourly Production" && (
+                <ResponsiveContainer width="100%" height={400}>
+                  <BarChart data={hourlyProductionData}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="hour" />
+                    <YAxis />
+                    <RechartsTooltip />
+                    <Legend />
+                    <Bar dataKey="gpc" fill="#3b82f6" name="GPC" />
+                    <Bar dataKey="waste" fill="#ef4444" name="Waste" />
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <DialogFooter>
+              <div className="flex space-x-2">
+                <Button
+                  onClick={handlePrint}
+                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Print Chart
+                </Button>
+                <Button
+                  onClick={handleExportToExcel}
+                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Export to Excel
+                </Button>
+                <Button 
+                  onClick={() => setSelectedChart(null)}
+                  className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                >
+                  Close
+                </Button>
+              </div>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   )
 }

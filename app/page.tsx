@@ -43,6 +43,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import {Gauge} from "lucide-react"
+import dynamic from 'next/dynamic';
 
 const ProductionRateCard = () => {
   const [currentSpeed, setCurrentSpeed] = useState(0)
@@ -285,70 +286,123 @@ function KPIDashboard() {
 
   const handlePrint = async () => {
     if (chartRef.current && selectedChart) {
-      const canvas = await html2canvas(chartRef.current)
-      const imgData = canvas.toDataURL('image/png')
-      const pdf = new jsPDF('l', 'mm', 'a4') // 'l' for landscape
-      const pageWidth = pdf.internal.pageSize.getWidth()
-      const pageHeight = pdf.internal.pageSize.getHeight()
-      
-      // Calculate aspect ratio to fit the chart properly
-      const imgWidth = canvas.width
-      const imgHeight = canvas.height
-      const ratio = Math.min(pageWidth / imgWidth, pageHeight / imgHeight)
-      
-      const finalWidth = imgWidth * ratio
-      const finalHeight = imgHeight * ratio
-      const xOffset = (pageWidth - finalWidth) / 2
-      const yOffset = (pageHeight - finalHeight) / 2
-      
-      pdf.addImage(imgData, 'PNG', xOffset, yOffset, finalWidth, finalHeight)
-      pdf.save(`${selectedChart.toLowerCase().replace(/\s+/g, '_')}.pdf`)
+      const { exportChartToPDF } = await import('@/utils/chart-export');
+      exportChartToPDF({
+        title: selectedChart,
+        data: [], // Not needed for PDF export
+        chartRef: chartRef,
+        clientName: "PixWingAi Client"
+      });
     }
   }
 
   const handleExportToExcel = () => {
-    if (!selectedChart) return
+    if (!selectedChart) return;
 
-    const wb = XLSX.utils.book_new()
-    let data: any[] = []
+    let data: any[] = [];
 
     if (selectedChart === "Linewise Performance") {
       data = linewiseData.map(item => ({
         Line: item.line,
         'OEE (%)': item.oee,
         'Waste (%)': item.waste
-      }))
+      }));
     } else if (selectedChart === "Downtime Contribution") {
       data = downtimeData.map(item => ({
-        'Downtime Type': item.name,
-        'Percentage': item.value
-      }))
+        'Downtime Category': item.name,
+        'Percentage (%)': item.value
+      }));
     } else if (selectedChart === "Energy & Utilities") {
-      // Combine all utility data into a single row per hour
-      data = Array.from({ length: 24 }, (_, hour) => ({
-        Hour: hour,
-        'Power': energyData.power[hour].value,
-        'Water': energyData.water[hour].value,
-        'Air': energyData.air[hour].value
-      }))
+      // Combine power and water data
+      const combinedData: any[] = [];
+      energyData.power.forEach(item => {
+        combinedData.push({
+          'Hour': `${item.hour}:00`,
+          'Type': 'Power',
+          'Value': item.value
+        });
+      });
+      energyData.water.forEach(item => {
+        combinedData.push({
+          'Hour': `${item.hour}:00`,
+          'Type': 'Water',
+          'Value': item.value
+        });
+      });
+      data = combinedData;
     } else if (selectedChart === "Power Usage") {
       data = energyData.power.map(item => ({
-        Hour: item.hour,
-        'Power Usage': item.value
-      }))
+        'Hour': `${item.hour}:00`,
+        'Power Usage (kWh)': item.value
+      }));
     } else if (selectedChart === "Water Usage") {
       data = energyData.water.map(item => ({
-        Hour: item.hour,
-        'Water Usage': item.value
-      }))
+        'Hour': `${item.hour}:00`,
+        'Water Usage (m³)': item.value
+      }));
     }
 
-    const ws = XLSX.utils.json_to_sheet(data)
-    XLSX.utils.book_append_sheet(wb, ws, 'Chart Data')
-    XLSX.writeFile(wb, `${selectedChart.toLowerCase().replace(/\s+/g, '_')}.xlsx`)
+    import('@/utils/chart-export').then(({ exportChartToExcel }) => {
+      exportChartToExcel({
+        title: selectedChart,
+        data: data,
+        chartRef: chartRef,
+        clientName: "PixWingAi Client"
+      });
+    });
   }
 
   const renderChartDialog = () => {
+    // Prepare data for export based on the selected chart
+    let exportData: any[] = [];
+    
+    if (selectedChart === "Linewise Performance") {
+      exportData = linewiseData.map(item => ({
+        Line: item.line,
+        'OEE (%)': item.oee,
+        'Waste (%)': item.waste
+      }));
+    } else if (selectedChart === "Downtime Contribution") {
+      exportData = downtimeData.map(item => ({
+        'Downtime Category': item.name,
+        'Percentage (%)': item.value
+      }));
+    } else if (selectedChart === "Energy & Utilities") {
+      // Combine power and water data
+      const combinedData: any[] = [];
+      energyData.power.forEach(item => {
+        combinedData.push({
+          'Hour': `${item.hour}:00`,
+          'Type': 'Power',
+          'Value': item.value
+        });
+      });
+      energyData.water.forEach(item => {
+        combinedData.push({
+          'Hour': `${item.hour}:00`,
+          'Type': 'Water',
+          'Value': item.value
+        });
+      });
+      exportData = combinedData;
+    } else if (selectedChart === "Power Usage") {
+      exportData = energyData.power.map(item => ({
+        'Hour': `${item.hour}:00`,
+        'Power Usage (kWh)': item.value
+      }));
+    } else if (selectedChart === "Water Usage") {
+      exportData = energyData.water.map(item => ({
+        'Hour': `${item.hour}:00`,
+        'Water Usage (m³)': item.value
+      }));
+    }
+    
+    // Import the ChartExportDialog component dynamically to avoid circular dependencies
+    const ChartExportDialog = dynamic(() => import('@/components/chart-export-dialog').then(mod => mod.ChartExportDialog), {
+      ssr: false,
+      loading: () => <div className="flex items-center justify-center h-full">Loading chart...</div>
+    });
+    
     return (
       <Dialog open={!!selectedChart} onOpenChange={() => setSelectedChart(null)}>
         <DialogContent className="max-w-[90vw] w-[900px] h-[700px] flex flex-col bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
@@ -641,7 +695,7 @@ function KPIDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    )
+    );
   }
 
   const lines = [

@@ -15,7 +15,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 // Mock user database - in production, this would be in your backend
 const MOCK_USERS: User[] = [
-  { username: 'plant_head', password: 'password123', role: 'plant_head' },
+  { username: 'plant_head', password: 'Password@7890', role: 'plant_head' },
   { username: 'operator', password: 'password123', role: 'operator' },
   { username: 'production_manager', password: 'password123', role: 'production_manager' },
   { username: 'engineer', password: 'password123', role: 'engineer' },
