@@ -136,13 +136,13 @@ const ProductionRateCard = () => {
                 textAnchor="middle" 
                 className="text-sm fill-current opacity-60"
               >
-                su/hr
+                PPM
               </text>
             </svg>
           </div>
-          <div className="flex items-center justify-center space-x-2 text-xs font-medium text-gray-600 dark:text-gray-300">
-            <TrendingUp className="w-3.5 h-3.5" />
-            <span>Target: {targetSpeed} su/hr</span>
+          <div className="flex justify-end space-x-2 text-xs font-medium text-gray-600 dark:text-gray-300">
+            <TrendingUp className="w-3.5 h-3.5 justify-end" />
+            <span>Target: {targetSpeed} PPM</span>
           </div>
         </div>
       </CardContent>
