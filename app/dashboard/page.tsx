@@ -11,14 +11,14 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import Link  from "next/link"
+import Link from "next/link"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Activity, BarChart3, } from "lucide-react"
+import { Activity, BarChart3, TrendingUp, Target, Clock, ClipboardList } from "lucide-react"
 import { withRoleCheck } from "@/components/auth/with-role-check"
-import  {Input} from "@/components/ui/input"
-import  {Label} from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { TooltipProvider } from "@/components/ui/tooltip"
-import { CircularProgressBar } from "@/components/CircularProgressBar"
+import { RadialProgressBar } from "@/components/RadialProgressBar"
 import {
   Bar,
   BarChart,
@@ -33,92 +33,154 @@ import {
   XAxis,
   YAxis,
   Legend,
-} from "@/components/ui/chart"
+  ComposedChart,
+  Area
+} from "recharts"
 import dynamic from 'next/dynamic'
-import { AlertTriangle, Droplets, Power, TrendingUp, Clock, Target, Shield } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
+import DatePicker from "react-datepicker";
+import "react-datepicker/dist/react-datepicker.css";
 
-const ChartExportDialog = dynamic(() => import('@/components/chart-export-dialog').then(mod => mod.ChartExportDialog), {
-  ssr: false,
-})
-
-const ProductionGauge = () => {
+const ProductionRateCard = () => {
   const [currentSpeed, setCurrentSpeed] = useState(0)
   const targetSpeed = 400
 
   useEffect(() => {
     const interval = setInterval(() => {
-      // Simulate changing speed data
       setCurrentSpeed((prev) => {
-        const change = Math.random() * 20 - 10 // Random change between -10 and 10
-        return Math.max(0, Math.min(targetSpeed, prev + change)) // Ensure speed is between 0 and targetSpeed
+        const change = Math.random() * 20 - 10
+        return Math.max(0, Math.min(targetSpeed, prev + change))
       })
-    }, 1000) // Update every second
+    }, 1000)
 
     return () => clearInterval(interval)
   }, [])
 
   const percentage = (currentSpeed / targetSpeed) * 100
-  const needleRotation = (percentage / 100) * 180 - 90 // -90 to 90 degrees
+  const needleRotation = (percentage / 100) * 180 - 90
 
   return (
-    <div className="flex flex-col items-center gap-2">
-      <div className="relative w-full h-48">
-        <svg viewBox="0 0 200 120" className="w-full h-full">
-          <defs>
-            {/* Gradient for the active path */}
-            <linearGradient id="activeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" style={{ stopColor: "#22c55e" }} />
-              <stop offset="100%" style={{ stopColor: "#22c55e" }} />
-            </linearGradient>
-            {/* Gradient for the needle */}
-            <linearGradient id="needleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" style={{ stopColor: "#ff3366" }} />
-              <stop offset="100%" style={{ stopColor: "#dc2626" }} />
-            </linearGradient>
-          </defs>
-
-          {/* Background arc (gray) */}
-          <path d="M20 100 A 80 80 0 0 1 180 100" fill="none" stroke="#374151" strokeWidth="20" strokeLinecap="round" />
-
-          {/* Active arc (green) */}
-          <path
-            d="M20 100 A 80 80 0 0 1 180 100"
-            fill="none"
-            stroke="url(#activeGradient)"
-            strokeWidth="20"
-            strokeLinecap="round"
-            strokeDasharray={`${percentage * 2.8}, ${280}`}
-          />
-
-          {/* Needle with gradient */}
-          <g transform={`rotate(${needleRotation}, 100, 100)`}>
-            {/* Needle line */}
-            <line x1="100" y1="100" x2="100" y2="40" stroke="url(#needleGradient)" strokeWidth="3" />
-            {/* Needle circle */}
-            <circle cx="100" cy="100" r="8" fill="url(#needleGradient)" />
-          </g>
-
-          {/* Percentage text */}
-          <text x="100" y="80" textAnchor="middle" fontSize="24" fontWeight="bold" fill="currentColor">
-            {Math.round(percentage)}%
-          </text>
-        </svg>
-      </div>
-      <div className="flex justify-between w-full text-sm">
-        <span>Actual Speed: {Math.round(currentSpeed)}</span>
-        <span>Target Speed: {targetSpeed}</span>
-      </div>
-    </div>
+    <Card className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg transition-all duration-300 h-full border border-blue-100 dark:border-blue-900">
+      <CardHeader className="p-3">
+        <div className="flex items-center">
+          <Target className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+          <CardTitle className="text-base font-semibold">Speed</CardTitle>
+        </div>
+      </CardHeader>
+      <CardContent className="p-3">
+        <div className="flex flex-col items-center">
+          <div className="relative w-full h-36">
+            <svg viewBox="0 0 200 100" className="w-full h-full">
+              <defs>
+                <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#3b82f6" />
+                  <stop offset="100%" stopColor="#22c55e" />
+                </linearGradient>
+                <linearGradient id="gaugeGradientDark" x1="0%" y1="0%" x2="100%" y2="0%">
+                  <stop offset="0%" stopColor="#60a5fa" />
+                  <stop offset="100%" stopColor="#34d399" />
+                </linearGradient>
+                <filter id="glow">
+                  <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+                <filter id="glowDark">
+                  <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <path
+                d="M20 100 A 80 80 0 0 1 180 100"
+                fill="none"
+                stroke="rgba(148, 163, 184, 0.2)"
+                strokeWidth="14"
+                strokeLinecap="round"
+              />
+              <path
+                d="M20 100 A 80 80 0 0 1 180 100"
+                fill="none"
+                stroke="url(#gaugeGradient)"
+                strokeWidth="14"
+                strokeLinecap="round"
+                strokeDasharray={`${(percentage * 2.8)}, ${280}`}
+                filter="url(#glow)"
+                className="dark:hidden"
+              />
+              <path
+                d="M20 100 A 80 80 0 0 1 180 100"
+                fill="none"
+                stroke="url(#gaugeGradientDark)"
+                strokeWidth="14"
+                strokeLinecap="round"
+                strokeDasharray={`${(percentage * 2.8)}, ${280}`}
+                filter="url(#glowDark)"
+                className="hidden dark:block"
+              />
+              <g transform={`rotate(${needleRotation}, 100, 100)`}>
+                <line
+                  x1="100"
+                  y1="100"
+                  x2="100"
+                  y2="40"
+                  stroke="#ef4444"
+                  strokeWidth="3"
+                  filter="url(#glow)"
+                  className="dark:stroke-red-400"
+                />
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="6"
+                  fill="#ef4444"
+                  filter="url(#glow)"
+                  className="dark:fill-red-400"
+                />
+              </g>
+              <text 
+                x="100" 
+                y="75" 
+                textAnchor="middle" 
+                className="text-lg font-bold fill-current"
+              >
+                {Math.round(currentSpeed)}
+              </text>
+              <text 
+                x="100" 
+                y="90" 
+                textAnchor="middle" 
+                className="text-base fill-current opacity-60"
+              >
+                su/hr
+              </text>
+            </svg>
+          </div>
+          <div className="flex items-center justify-center text-base font-medium text-gray-600 dark:text-gray-300">
+            <TrendingUp className="w-5 h-5 mr-2 text-blue-500 dark:text-blue-400" />
+            <span>Target: {targetSpeed} su/hr</span>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }
 
+const ChartExportDialog = dynamic(() => import('@/components/chart-export-dialog').then(mod => mod.ChartExportDialog), {
+  ssr: false,
+})
+
 export default function ProductionDashboard() {
-  const [selectedPlant, setSelectedPlant] = useState("plant1")
-  const [selectedMachine, setSelectedMachine] = useState("machine1")
-  const [startTime, setStartTime] = useState("")
-  const [endTime, setEndTime] = useState("")
-  const [selectedChart, setSelectedChart] = useState<string | null>(null)
+  const [selectedChart, setSelectedChart] = useState<string | null>(null);
+  const [startDate, setStartDate] = useState<Date | null>(new Date());
+  const [endDate, setEndDate] = useState<Date | null>(new Date());
+  const [startShift, setStartShift] = useState<string>("shift1");
+  const [endShift, setEndShift] = useState<string>("shift1");
+  const [selectedLine, setSelectedLine] = useState<string>("line1");
+  const [selectedPlant, setSelectedPlant] = useState<string>("plant1");
 
   // Sample data
   const kpiData = {
@@ -143,7 +205,6 @@ export default function ProductionDashboard() {
     { name: "Maintenance", value: 20, color: "#74B9FF" },
   ]
 
-  // Calculate total downtime
   const totalDowntime = downtimeData.reduce((total, item) => total + item.value, 0);
 
   const timeAccountData = [
@@ -161,6 +222,7 @@ export default function ProductionDashboard() {
     hour: `${7 + i}:00`,
     gpc: Math.floor(Math.random() * 15000) + 20000,
     waste: Math.floor(Math.random() * 1000) + 500,
+    target: 30000,
   }))
 
   const chartRef = useRef<HTMLDivElement>(null)
@@ -170,7 +232,7 @@ export default function ProductionDashboard() {
       const { exportChartToPDF } = await import('@/utils/chart-export');
       exportChartToPDF({
         title: selectedChart,
-        data: [], // Not needed for PDF export
+        data: [],
         chartRef: chartRef,
         clientName: "PixWingAi Client"
       });
@@ -212,89 +274,150 @@ export default function ProductionDashboard() {
     });
   }
 
-  const [chartSize, setChartSize] = useState({ width: 150, height: 80, cardWidth: 60, cardHeight: 30 });
-
-  // Update chart size based on window size
-  useEffect(() => {
-    const handleResize = () => {
-      // For the dialog
-      const dialogWidth = Math.min(window.innerWidth * 0.25, 200);
-      const dialogHeight = Math.min(window.innerHeight * 0.15, 120);
-      
-      // For the card
-      const cardWidth = 60;
-      const cardHeight = 30;
-      
-      setChartSize({ 
-        width: dialogWidth, 
-        height: dialogHeight,
-        cardWidth: cardWidth,
-        cardHeight: cardHeight
-      });
-    };
-
-    // Set initial size
-    handleResize();
-
-    // Add event listener
-    window.addEventListener('resize', handleResize);
-    
-    // Cleanup
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
+  const getColorForIndex = (index: number, opacity: number = 1) => {
+    const colors = [
+      `rgba(59, 130, 246, ${opacity})`, // blue
+      `rgba(16, 185, 129, ${opacity})`, // green
+      `rgba(239, 68, 68, ${opacity})`,  // red
+      `rgba(245, 158, 11, ${opacity})`, // amber
+      `rgba(139, 92, 246, ${opacity})`, // purple
+      `rgba(236, 72, 153, ${opacity})`, // pink
+      `rgba(20, 184, 166, ${opacity})`, // teal
+      `rgba(249, 115, 22, ${opacity})`, // orange
+    ];
+    return colors[index % colors.length];
+  };
 
   return (
-    <div className="space-y-6">
-      {/* Filter Bar */}
-      <div className="bg-blue-100 p-4 rounded-lg grid grid-cols-4 gap-4">
-        <Select>
-          <SelectTrigger>
-            <SelectValue placeholder="Select Plant" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="plant1">Plant 1</SelectItem>
-            <SelectItem value="plant2">Plant 2</SelectItem>
-            <SelectItem value="plant3">Plant 3</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select>
-          <SelectTrigger>
-            <SelectValue placeholder="Select Machine" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="machine1">Machine 1</SelectItem>
-            <SelectItem value="machine2">Machine 2</SelectItem>
-            <SelectItem value="machine3">Machine 3</SelectItem>
-          </SelectContent>
-        </Select>
-        <Input type="datetime-local" placeholder="Start Time" />
-        <Input type="datetime-local" placeholder="End Time" />
+    <div className="space-y-1 pb-2 dark:bg-gray-900 dark:text-gray-100">
+      {/* Filters - more compact */}
+      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-950 dark:to-indigo-950 p-1 rounded-lg shadow-sm mb-2 border border-blue-100 dark:border-blue-900 hover:shadow-md transition-all duration-300">
+        <div className="grid grid-cols-7 gap-2 items-end text-sm">
+          <div className="">
+            <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">Plant</label>
+            <Select value={selectedPlant} onValueChange={setSelectedPlant}>
+              <SelectTrigger className="h-7 min-h-7 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded">
+                <SelectValue placeholder="Select Plant" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="plant1">Plant 1</SelectItem>
+                <SelectItem value="plant2">Plant 2</SelectItem>
+                <SelectItem value="plant3">Plant 3</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-0.5">
+            <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">Line</label>
+            <Select value={selectedLine} onValueChange={setSelectedLine}>
+              <SelectTrigger className="h-7 min-h-7 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded">
+                <SelectValue placeholder="Select Line" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="line1">Line 1</SelectItem>
+                <SelectItem value="line2">Line 2</SelectItem>
+                <SelectItem value="line3">Line 3</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-0.5">
+            <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">Start Date</label>
+            <div className="relative">
+              <DatePicker 
+                selected={startDate} 
+                onChange={(date: Date) => setStartDate(date)} 
+                dateFormat="MM/dd/yyyy"
+                className="w-full h-7 pl-7 pr-1 py-0.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded"
+              />
+              <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
+                <svg className="h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-0.5">
+            <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">Start Shift</label>
+            <Select value={startShift} onValueChange={setStartShift}>
+              <SelectTrigger className="h-7 min-h-7 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded">
+                <SelectValue placeholder="Select Shift" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="shift1">Shift A</SelectItem>
+                <SelectItem value="shift2">Shift B</SelectItem>
+                <SelectItem value="shift3">Shift C</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="space-y-0.5">
+            <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">End Date</label>
+            <div className="relative">
+              <DatePicker 
+                selected={endDate} 
+                onChange={(date: Date) => setEndDate(date)} 
+                dateFormat="MM/dd/yyyy"
+                className="w-full h-7 pl-7 pr-1 py-0.5 text-sm bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded"
+              />
+              <div className="absolute inset-y-0 left-0 pl-1.5 flex items-center pointer-events-none">
+                <svg className="h-4 w-4 text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+          
+          <div className="space-y-0.5">
+            <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">End Shift</label>
+            <Select value={endShift} onValueChange={setEndShift}>
+              <SelectTrigger className="h-7 min-h-7 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded">
+                <SelectValue placeholder="Select Shift" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="shift1">Shift A</SelectItem>
+                <SelectItem value="shift2">Shift B</SelectItem>
+                <SelectItem value="shift3">Shift C</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex items-end justify-end">
+            <button className="px-3 py-0.5 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition-colors flex items-center text-sm dark:bg-blue-700 dark:hover:bg-blue-800 dark:shadow-blue-900/20">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+              </svg>
+              Apply
+            </button>
+          </div>
+        </div>
       </div>
 
-      {/* Main Content */}
-      <div className="space-y-6">
+      {/* Main Content - More compact grid with smaller gaps */}
+      <div className="space-y-1">
         {/* First Row */}
-        <div className="grid grid-cols-12 gap-6">
+        <div className="grid grid-cols-12 gap-4">
           {/* KPI Section */}
-          <Card className="col-span-5">
-            <CardContent className="p-6">
+          <Card className="col-span-5 p-0 border-blue-100 dark:border-blue-900 dark:bg-gradient-to-br dark:from-gray-800 dark:to-gray-900 shadow-md hover:shadow-lg transition-all duration-300">
+            <CardContent className="p-4">
               <div className="flex space-x-4">
                 {/* Left half - OEE */}
                 <div className="flex-1 flex justify-center items-center">
-                  <CircularProgressBar value={kpiData.oee} color="text-blue-500" label="OEE" size={160} />
+                  <RadialProgressBar value={kpiData.oee} color="blue-500" label="OEE" size={140} />
                 </div>
 
                 {/* Right half - AVA, EFF, QUA, and Production Data */}
                 <div className="flex-1 flex flex-col">
-                  <div className="grid grid-cols-3 gap-4 mb-4">
-                    <CircularProgressBar value={kpiData.availability} color="text-green-500" label="AVA" size={80} />
-                    <CircularProgressBar value={kpiData.efficiency} color="text-yellow-500" label="EFF" size={80} />
-                    <CircularProgressBar value={kpiData.quality} color="text-red-500" label="QUA" size={80} />
+                  <div className="grid grid-cols-3 gap-3 mb-4">
+                    <RadialProgressBar value={kpiData.availability} color="green-500" label="AVA" size={70} />
+                    <RadialProgressBar value={kpiData.efficiency} color="yellow-500" label="EFF" size={70} />
+                    <RadialProgressBar value={kpiData.quality} color="red-500" label="QUA" size={70} />
                   </div>
 
                   {/* Production Data Bar */}
                   <div>
-                    <h3 className="font-medium mb-2">Production Data</h3>
+                    <h3 className="text-base font-medium mb-2">Production Data</h3>
                     <div className="relative h-6 bg-gray-200 rounded">
                       <div
                         className="absolute h-full bg-green-500 rounded"
@@ -308,10 +431,10 @@ export default function ProductionDashboard() {
                         }}
                       />
                     </div>
-                    <div className="flex justify-between mt-1 text-sm">
-                      <span>Actual Qty: {productionData.actualQty}</span>
+                    <div className="flex justify-between mt-2 text-base">
+                      <span>Actual: {productionData.actualQty}</span>
                       <span>Waste: {productionData.waste}</span>
-                      <span>Target Qty: {productionData.targetQty}</span>
+                      <span>Target: {productionData.targetQty}</span>
                     </div>
                   </div>
                 </div>
@@ -320,153 +443,31 @@ export default function ProductionDashboard() {
           </Card>
 
           {/* Production Rate Gauge */}
-          <Card className="col-span-3">
-            <CardHeader>
-              <CardTitle className="text-lg font-medium">Production Rate</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ProductionGauge />
-            </CardContent>
-          </Card>
+          <div className="col-span-3">
+            <ProductionRateCard />
+          </div>
 
           {/* Downtime Contribution */}
           <Card 
-            className="bg-white shadow-sm col-span-3"
+            className="col-span-4 shadow-sm p-0 border-blue-100 dark:border-blue-900 dark:bg-gradient-to-br dark:from-gray-800 dark:to-gray-900 hover:shadow-md transition-shadow duration-300"
             onClick={() => setSelectedChart("Downtime")}
           >
-            <CardHeader className="pb-0 pt-2">
-              <CardTitle className="text-base font-medium">Downtime Contribution</CardTitle>
+            <CardHeader className="pb-2 pt-1 px-4 bg-gradient-to-r from-blue-50 to-white dark:from-blue-950 dark:to-gray-900">
+              <CardTitle className="text-base font-medium flex items-center gap-2">
+                <Activity className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+                Downtime Contribution
+              </CardTitle>
             </CardHeader>
-            <CardContent className="grid grid-cols-2 gap-4 p-4">
-              <div className="h-[180px]">
+            <CardContent className="grid grid-cols-2 gap-3 p-2">
+              <div className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                     <Pie
                       data={downtimeData}
                       cx="50%"
                       cy="50%"
-                      outerRadius={80}
-                      innerRadius={50}
-                      paddingAngle={2}
-                      dataKey="value"
-                    >
-                      {downtimeData.map((entry, index) => (
-                        <Cell 
-                          key={index} 
-                          fill={entry.color}
-                          stroke="white"
-                          strokeWidth={1}
-                        />
-                      ))}
-                    </Pie>
-                    <RechartsTooltip 
-                      contentStyle={{ 
-                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
-                        borderRadius: '4px',
-                        border: '1px solid rgba(148, 163, 184, 0.2)',
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
-                        padding: '4px 8px',
-                        fontSize: '12px'
-                      }}
-                      formatter={(value: number, name: string, props: any) => {
-                        const entry = downtimeData.find(item => item.value === value);
-                        return [`${value}%`, entry ? entry.name : name];
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="flex flex-col justify-center space-y-2">
-                {downtimeData.map((item, index) => (
-                  <div key={index} className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-sm text-gray-600">{item.name}</span>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Second Row */}
-        <div className="grid grid-cols-12 gap-6">
-          {/* Time Account */}
-          <Card className="col-span-4">
-            <CardHeader>
-              <CardTitle>Time Account</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="cursor-pointer" onClick={() => setSelectedChart("Time Account")}>
-                <div className="space-y-2">
-                  {timeAccountData.map((item) => (
-                    <div key={item.name} className="flex items-center">
-                      <span className="w-32">{item.name}</span>
-                      <div className="flex-1 h-6 bg-gray-200 rounded">
-                        <div
-                          className="h-full bg-blue-500 rounded"
-                          style={{ width: `${(item.minutes / 480) * 100}%` }}
-                        />
-                      </div>
-                      <span className="w-12 text-right">{item.minutes}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </CardContent>
-            <Link href="/downtime-tracker">
-            <Button className="w-full mt-4">Downtime Tracker</Button>
-            </Link>
-          </Card>
-
-          {/* Hourly Production */}
-          <Card className="col-span-8">
-            <CardHeader>
-              <CardTitle>Hourly Production</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="cursor-pointer" onClick={() => setSelectedChart("Hourly Production")}>
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={hourlyProductionData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="hour" />
-                    <YAxis />
-                    <RechartsTooltip />
-                    <Legend />
-                    <Bar dataKey="gpc" fill="#3b82f6" name="GPC" />
-                    <Bar dataKey="waste" fill="#ef4444" name="Waste" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </CardContent>
-          </Card>
-          Temperature Chart
-        </div>
-      </div>
-
-      {/* Chart Dialog */}
-      {selectedChart && (
-        <Dialog open={!!selectedChart} onOpenChange={(open) => !open && setSelectedChart(null)}>
-          <DialogContent className="max-w-4xl max-h-[90vh] overflow-auto">
-            <DialogHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <Activity className="w-6 h-6 text-blue-500" />
-                  <DialogTitle className="text-xl font-semibold">
-                    {selectedChart === "Downtime" ? "Downtime Contribution" : selectedChart}
-                  </DialogTitle>
-                </div>
-              </div>
-            </DialogHeader>
-            <div ref={chartRef} className="flex-1 p-8">
-              {selectedChart === "Downtime" && (
-                <ResponsiveContainer width="100%" height={400}>
-                  <PieChart>
-                    <Pie
-                      data={downtimeData}
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={150}
-                      innerRadius={100}
+                      outerRadius={60}
+                      innerRadius={35}
                       paddingAngle={2}
                       dataKey="value"
                     >
@@ -476,6 +477,245 @@ export default function ProductionDashboard() {
                           fill={entry.color}
                           stroke="white"
                           strokeWidth={2}
+                          className="dark:stroke-gray-800"
+                        />
+                      ))}
+                    </Pie>
+                    <RechartsTooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: '4px',
+                        fontSize: '12px',
+                        padding: '2px 4px',
+                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)'
+                      }}
+                      formatter={(value: number, name: string, props: any) => {
+                        const entry = downtimeData.find(item => item.value === value);
+                        return [`${value}%`, entry ? entry.name : name];
+                      }}
+                      wrapperClassName="!bg-white dark:!bg-gray-800 dark:!text-gray-100 dark:!border dark:!border-gray-700 dark:!shadow-lg"
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="flex flex-col justify-center">
+                {downtimeData.map((item, index) => (
+                  <div key={index} className="flex items-center gap-2 mb-2">
+                    <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }} />
+                    <span className="text-sm text-gray-600 dark:text-gray-300 truncate">{item.name}</span>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Second Row */}
+        <div className="grid grid-cols-12 gap-3">
+          {/* Time Account */}
+          <Card className="col-span-4 p-0 hover:shadow-md transition-shadow duration-300 border-blue-100 dark:border-blue-900 dark:bg-gradient-to-br dark:from-gray-800 dark:to-gray-900">
+            <CardHeader className="p-3 bg-gradient-to-r from-blue-50 to-white dark:from-blue-950 dark:to-gray-900">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Clock className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+                Time Account
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-4">
+              <div className="cursor-pointer" onClick={() => setSelectedChart("Time Account")}>
+                <div className="space-y-3">
+                  {timeAccountData.slice(0, 6).map((item, index) => (
+                    <div key={item.name} className="flex items-center">
+                      <span className="w-32 text-sm truncate font-medium">{item.name}</span>
+                      <div className="flex-1 h-5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden shadow-inner">
+                        <div
+                          className="h-full rounded-full relative"
+                          style={{ 
+                            width: `${(item.minutes / 480) * 100}%`,
+                            background: `linear-gradient(90deg, ${getColorForIndex(index, 0.7)}, ${getColorForIndex(index, 0.9)})`,
+                            boxShadow: 'inset 0 1px 2px rgba(255, 255, 255, 0.3)'
+                          }}
+                        >
+                          <div className="absolute inset-0 opacity-20 bg-white bg-opacity-20" 
+                               style={{ 
+                                 backgroundImage: 'linear-gradient(45deg, rgba(255,255,255,.15) 25%, transparent 25%, transparent 50%, rgba(255,255,255,.15) 50%, rgba(255,255,255,.15) 75%, transparent 75%, transparent)',
+                                 backgroundSize: '1rem 1rem',
+                                 animation: 'progress-bar-stripes 1s linear infinite'
+                               }}/>
+                        </div>
+                      </div>
+                      <span className="w-14 text-right text-sm ml-2 font-medium">{item.minutes} min</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div className="mt-4">
+                <Link href="/downtime-tracker">
+                  <Button className="w-full h-8 text-sm py-0 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-sm">
+                    <ClipboardList className="h-4 w-4 mr-2" />
+                    Downtime Tracker
+                  </Button>
+                </Link>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Hourly Production */}
+          <Card className="col-span-8 overflow-hidden p-0 border-blue-100 dark:border-blue-900 dark:bg-gradient-to-br dark:from-gray-800 dark:to-gray-900 hover:shadow-md transition-shadow duration-300">
+            <CardHeader className="p-3 bg-gradient-to-r from-blue-50 to-white dark:from-blue-950 dark:to-gray-900">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <BarChart3 className="h-5 w-5 text-blue-500 dark:text-blue-400" />
+                Hourly Production
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-3">
+              <div className="cursor-pointer" onClick={() => setSelectedChart("Hourly Production")}>
+                <ResponsiveContainer width="100%" height={240}>
+                  <ComposedChart 
+                    data={hourlyProductionData}
+                    margin={{ top: 15, right: 30, left: 15, bottom: 15 }}
+                  >
+                    <defs>
+                      <linearGradient id="gpcGradientMain" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9}/>
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                      </linearGradient>
+                      <linearGradient id="wasteGradientMain" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9}/>
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.4}/>
+                      </linearGradient>
+                      <linearGradient id="targetGradientMain" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.8}/>
+                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.4}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
+                    <XAxis 
+                      dataKey="hour" 
+                      tick={{ fill: 'currentColor', fontSize: 12 }}
+                      tickLine={{ stroke: 'currentColor' }}
+                      axisLine={{ stroke: 'currentColor' }}
+                    />
+                    <YAxis 
+                      yAxisId="left"
+                      tick={{ fill: 'currentColor', fontSize: 12 }}
+                      tickLine={{ stroke: 'currentColor' }}
+                      axisLine={{ stroke: 'currentColor' }}
+                      width={30}
+                      label={{ 
+                        value: 'GPC', 
+                        angle: -90, 
+                        position: 'insideLeft',
+                        fill: 'currentColor',
+                        style: { textAnchor: 'middle', fontSize: '11px' }
+                      }}
+                    />
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fill: 'currentColor', fontSize: 12 }}
+                      tickLine={{ stroke: 'currentColor' }}
+                      axisLine={{ stroke: 'currentColor' }}
+                      width={30}
+                      label={{ 
+                        value: 'Waste', 
+                        angle: 90, 
+                        position: 'insideRight',
+                        fill: 'currentColor',
+                        style: { textAnchor: 'middle', fontSize: '11px' }
+                      }}
+                    />
+                    <RechartsTooltip 
+                      cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      }}
+                      animationDuration={300}
+                      wrapperClassName="!bg-white dark:!bg-gray-800 dark:!text-gray-100 dark:!border dark:!border-gray-700 dark:!shadow-lg"
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '5px', fontSize: '12px' }}
+                      iconType="circle"
+                      iconSize={8}
+                    />
+                    <Bar 
+                      yAxisId="left"
+                      dataKey="gpc" 
+                      fill="url(#gpcGradientMain)" 
+                      name="GPC" 
+                      radius={[4, 4, 0, 0]}
+                      animationDuration={1200}
+                      barSize={22}
+                      stroke="#3b82f6"
+                      strokeWidth={1}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="waste"
+                      name="Waste"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      dot={{ r: 4, fill: "#ef4444", strokeWidth: 1 }}
+                      activeDot={{ r: 6, fill: "#ef4444", stroke: "#fff", strokeWidth: 2 }}
+                      animationDuration={1500}
+                    />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="target"
+                      name="Target"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={{ r: 4, fill: "#10b981", strokeWidth: 1 }}
+                      activeDot={{ r: 6, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }}
+                      animationDuration={1500}
+                    />
+                  </ComposedChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      {/* Chart Dialog */}
+      {selectedChart && (
+        <Dialog open={!!selectedChart} onOpenChange={(open) => !open && setSelectedChart(null)}>
+          <DialogContent className="max-w-3xl max-h-[80vh] overflow-auto dark:bg-gradient-to-br dark:from-gray-800 dark:to-gray-900 dark:text-gray-100 dark:border-gray-700 shadow-xl">
+            <DialogHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <Activity className="w-5 h-5 text-blue-500 dark:text-blue-400" />
+                  <DialogTitle className="text-lg font-semibold">
+                    {selectedChart === "Downtime" ? "Downtime Contribution" : selectedChart}
+                  </DialogTitle>
+                </div>
+              </div>
+            </DialogHeader>
+            <div ref={chartRef} className="flex-1 p-4">
+              {selectedChart === "Downtime" && (
+                <ResponsiveContainer width="100%" height={350}>
+                  <PieChart>
+                    <Pie
+                      data={downtimeData}
+                      cx="50%"
+                      cy="50%"
+                      outerRadius={120}
+                      innerRadius={80}
+                      paddingAngle={2}
+                      dataKey="value"
+                    >
+                      {downtimeData.map((entry, index) => (
+                        <Cell 
+                          key={index} 
+                          fill={entry.color}
+                          stroke="white"
+                          strokeWidth={2}
+                          className="dark:stroke-gray-800"
                         />
                       ))}
                     </Pie>
@@ -490,41 +730,191 @@ export default function ProductionDashboard() {
                       contentStyle={{ 
                         backgroundColor: 'rgba(255, 255, 255, 0.95)',
                         borderRadius: '4px',
-                        border: '1px solid rgba(148, 163, 184, 0.2)',
-                        boxShadow: '0 2px 4px rgba(0, 0, 0, 0.1)',
                         padding: '4px 8px',
-                        fontSize: '12px'
+                        fontSize: '12px',
+                        boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)'
                       }}
                       formatter={(value: number, name: string, props: any) => {
                         const entry = downtimeData.find(item => item.value === value);
                         return [`${value}%`, entry ? entry.name : name];
                       }}
+                      wrapperClassName="!bg-white dark:!bg-gray-800 dark:!text-gray-100 dark:!border dark:!border-gray-700 dark:!shadow-lg"
                     />
                   </PieChart>
                 </ResponsiveContainer>
               )}
               {selectedChart === "Time Account" && (
                 <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={timeAccountData} layout="vertical" margin={{ top: 5, right: 30, left: 100, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis dataKey="name" type="category" width={100} />
-                    <RechartsTooltip />
-                    <Bar dataKey="minutes" fill="#3b82f6" />
+                  <BarChart 
+                    data={timeAccountData} 
+                    layout="vertical" 
+                    margin={{ top: 20, right: 30, left: 120, bottom: 20 }}
+                  >
+                    <defs>
+                      {timeAccountData.map((entry, index) => (
+                        <linearGradient 
+                          key={`gradient-${index}`} 
+                          id={`timeGradient${index}`} 
+                          x1="0" 
+                          y1="0" 
+                          x2="1" 
+                          y2="0"
+                        >
+                          <stop offset="0%" stopColor={getColorForIndex(index, 0.7)} />
+                          <stop offset="100%" stopColor={getColorForIndex(index, 0.9)} />
+                        </linearGradient>
+                      ))}
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
+                    <XAxis 
+                      type="number" 
+                      tick={{ fill: 'currentColor' }}
+                      tickLine={{ stroke: 'currentColor' }}
+                      axisLine={{ stroke: 'currentColor' }}
+                      label={{ 
+                        value: 'Minutes', 
+                        position: 'insideBottom',
+                        offset: -10,
+                        fill: 'currentColor'
+                      }}
+                    />
+                    <YAxis 
+                      dataKey="name" 
+                      type="category" 
+                      width={120}
+                      tick={{ fill: 'currentColor' }}
+                      tickLine={{ stroke: 'currentColor' }}
+                      axisLine={{ stroke: 'currentColor' }}
+                    />
+                    <RechartsTooltip 
+                      cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      }}
+                      formatter={(value: number) => [`${value} minutes`, 'Time']}
+                      animationDuration={300}
+                      wrapperClassName="!bg-white dark:!bg-gray-800 dark:!text-gray-100 dark:!border dark:!border-gray-700 dark:!shadow-lg"
+                    />
+                    <Bar 
+                      dataKey="minutes" 
+                      radius={[0, 4, 4, 0]}
+                      animationDuration={1200}
+                    >
+                      {timeAccountData.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={`url(#timeGradient${index})`} />
+                      ))}
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               )}
               {selectedChart === "Hourly Production" && (
                 <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={hourlyProductionData}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="hour" />
-                    <YAxis />
-                    <RechartsTooltip />
-                    <Legend />
-                    <Bar dataKey="gpc" fill="#3b82f6" name="GPC" />
-                    <Bar dataKey="waste" fill="#ef4444" name="Waste" />
-                  </BarChart>
+                  <ComposedChart 
+                    data={hourlyProductionData}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                  >
+                    <defs>
+                      <linearGradient id="gpcGradientDialog" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#3b82f6" stopOpacity={0.9}/>
+                        <stop offset="100%" stopColor="#3b82f6" stopOpacity={0.4}/>
+                      </linearGradient>
+                      <linearGradient id="wasteGradientDialog" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#ef4444" stopOpacity={0.9}/>
+                        <stop offset="100%" stopColor="#ef4444" stopOpacity={0.4}/>
+                      </linearGradient>
+                      <linearGradient id="targetGradientDialog" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#10b981" stopOpacity={0.8}/>
+                        <stop offset="100%" stopColor="#10b981" stopOpacity={0.4}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.2)" />
+                    <XAxis 
+                      dataKey="hour" 
+                      tick={{ fill: 'currentColor' }}
+                      tickLine={{ stroke: 'currentColor' }}
+                      axisLine={{ stroke: 'currentColor' }}
+                    />
+                    <YAxis 
+                      yAxisId="left"
+                      tick={{ fill: 'currentColor' }}
+                      tickLine={{ stroke: 'currentColor' }}
+                      axisLine={{ stroke: 'currentColor' }}
+                      label={{ 
+                        value: 'GPC', 
+                        angle: -90, 
+                        position: 'insideLeft',
+                        fill: 'currentColor',
+                        style: { textAnchor: 'middle' }
+                      }}
+                    />
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      tick={{ fill: 'currentColor' }}
+                      tickLine={{ stroke: 'currentColor' }}
+                      axisLine={{ stroke: 'currentColor' }}
+                      label={{ 
+                        value: 'Waste', 
+                        angle: 90, 
+                        position: 'insideRight',
+                        fill: 'currentColor',
+                        style: { textAnchor: 'middle' }
+                      }}
+                    />
+                    <RechartsTooltip 
+                      cursor={{ fill: 'rgba(148, 163, 184, 0.1)' }}
+                      contentStyle={{ 
+                        backgroundColor: 'rgba(255, 255, 255, 0.95)',
+                        borderRadius: '8px',
+                        border: '1px solid rgba(148, 163, 184, 0.2)',
+                        boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                      }}
+                      animationDuration={300}
+                      wrapperClassName="!bg-white dark:!bg-gray-800 dark:!text-gray-100 dark:!border dark:!border-gray-700 dark:!shadow-lg"
+                    />
+                    <Legend 
+                      wrapperStyle={{ paddingTop: '10px' }}
+                      iconType="circle"
+                      iconSize={10}
+                    />
+                    <Bar 
+                      yAxisId="left"
+                      dataKey="gpc" 
+                      fill="url(#gpcGradientDialog)" 
+                      name="GPC" 
+                      radius={[4, 4, 0, 0]}
+                      animationDuration={1200}
+                      barSize={30}
+                      stroke="#3b82f6"
+                      strokeWidth={1}
+                    />
+                    <Line
+                      yAxisId="right"
+                      type="monotone"
+                      dataKey="waste"
+                      name="Waste"
+                      stroke="#ef4444"
+                      strokeWidth={2}
+                      dot={{ r: 4, fill: "#ef4444", strokeWidth: 1 }}
+                      activeDot={{ r: 6, fill: "#ef4444", stroke: "#fff", strokeWidth: 2 }}
+                      animationDuration={1500}
+                    />
+                    <Line
+                      yAxisId="left"
+                      type="monotone"
+                      dataKey="target"
+                      name="Target"
+                      stroke="#10b981"
+                      strokeWidth={2}
+                      strokeDasharray="5 5"
+                      dot={{ r: 4, fill: "#10b981", strokeWidth: 1 }}
+                      activeDot={{ r: 6, fill: "#10b981", stroke: "#fff", strokeWidth: 2 }}
+                      animationDuration={1500}
+                    />
+                  </ComposedChart>
                 </ResponsiveContainer>
               )}
             </div>
@@ -532,19 +922,19 @@ export default function ProductionDashboard() {
               <div className="flex space-x-2">
                 <Button
                   onClick={handlePrint}
-                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                  className="bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 dark:from-purple-600 dark:to-purple-800 dark:hover:from-purple-700 dark:hover:to-purple-900 dark:shadow-blue-900/20"
                 >
                   Print Chart
                 </Button>
                 <Button
                   onClick={handleExportToExcel}
-                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                  className="bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 dark:from-green-600 dark:to-green-800 dark:hover:from-green-700 dark:hover:to-green-900 dark:shadow-blue-900/20"
                 >
                   Export to Excel
                 </Button>
                 <Button 
                   onClick={() => setSelectedChart(null)}
-                  className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-lg hover:shadow-xl transition-all duration-300"
+                  className="bg-gradient-to-r from-gray-500 to-gray-600 hover:from-gray-600 hover:to-gray-700 text-white shadow-lg hover:shadow-xl transition-all duration-300 dark:from-gray-600 dark:to-gray-800 dark:hover:from-gray-700 dark:hover:to-gray-900 dark:shadow-blue-900/20"
                 >
                   Close
                 </Button>

@@ -1,1155 +1,20 @@
-// "use client"
-
-// import { useState, useCallback } from "react"
-// import { Button } from "@/components/ui/button"
-// import { Card, CardContent } from "@/components/ui/card"
-// import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
-// import { Input } from "@/components/ui/input"
-// import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-// import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-// import { Plus } from "lucide-react"
-// import { withRoleCheck } from "@/components/auth/with-role-check"
-// import { useAuth } from "@/context/auth-context"
-
-// // Dropdown options
-// const machineWasteReasons = [
-//   "Material Jam",
-//   "Machine Breakdown",
-//   "Setup Issues",
-//   "Power Failure",
-//   "Quality Issues",
-//   "Other"
-// ]
-
-// const dtTypes = [
-//   "Planned",
-//   "Unplanned",
-//   "Maintenance",
-//   "Quality Check"
-// ]
-
-// const applicatorsByDtType = {
-//   "Planned": ["Production Manager", "Shift Supervisor", "Line Leader"],
-//   "Unplanned": ["Machine Operator", "Maintenance Team", "Quality Inspector"],
-//   "Maintenance": ["Maintenance Team", "External Technician"],
-//   "Quality Check": ["Quality Inspector", "Production Manager"]
-// }
-
-// const delayReasonsByDtType = {
-//   "Planned": ["Scheduled Maintenance", "Shift Change", "Break Time", "Team Meeting"],
-//   "Unplanned": ["Machine Breakdown", "Material Shortage", "Power Failure", "Emergency"],
-//   "Maintenance": ["Preventive Maintenance", "Repair Work", "Part Replacement", "Calibration"],
-//   "Quality Check": ["Product Testing", "Quality Audit", "Sample Inspection", "Parameter Adjustment"]
-// }
-
-// // Types
-// interface DowntimeEntry {
-//   dtStart: string
-//   dtEnd: string
-//   dtInMin: number
-//   typeOfDT: string
-//   applicator: string
-//   delayReason: string
-//   remarks: string
-// }
-
-// interface DelayEntry {
-//   startTime: string
-//   endTime: string
-//   scheduleTime: string
-//   shift: string
-//   tpc: number
-//   machineWaste: number
-//   finalWaste: number
-//   gpc: number
-//   wasteReason: string
-//   downtimes: DowntimeEntry[]
-//   isSaved?: boolean
-// }
-
-// interface LineDetails {
-//   line: string
-//   shift: string
-//   productionOrder: string
-//   productionCode: string
-//   productDescription: string
-//   mainOperator: string
-//   assistantOperator: string
-//   shiftIncharge: string
-// }
-
-// const tableStyles = {
-//   input: "w-full h-10",
-//   select: "w-full h-10",
-//   cell: "min-w-[120px] p-2"
-// }
-
-// function DowntimeTracker() {
-//   const { checkAccess } = useAuth();
-//   const hasEditAccess = checkAccess('downtimeTracker') === 'edit';
-  
-//   const [selectedLine, setSelectedLine] = useState("Line 1")
-//   const [lineDetails, setLineDetails] = useState<LineDetails>({
-//     line: "Line 1",
-//     shift: "",
-//     productionOrder: "",
-//     productionCode: "",
-//     productDescription: "",
-//     mainOperator: "",
-//     assistantOperator: "",
-//     shiftIncharge: "",
-//   })
-//   const [showDowntimeDialog, setShowDowntimeDialog] = useState(false)
-//   const [showDowntimeDetailsDialog, setShowDowntimeDetailsDialog] = useState(false)
-//   const [currentEntryIndex, setCurrentEntryIndex] = useState<number | null>(null)
-//   const [currentDowntimeIndex, setCurrentDowntimeIndex] = useState<number | null>(null)
-//   const [isEditingDowntime, setIsEditingDowntime] = useState(false)
-//   const [isSubmitting, setIsSubmitting] = useState(false)
-//   const [newDowntime, setNewDowntime] = useState<DowntimeEntry>({
-//     dtStart: "",
-//     dtEnd: "",
-//     dtInMin: 0,
-//     typeOfDT: "",
-//     applicator: "",
-//     delayReason: "",
-//     remarks: ""
-//   })
-//   const [delayEntries, setDelayEntries] = useState<DelayEntry[]>([
-//     {
-//       startTime: "08:00",
-//       endTime: "08:30",
-//       scheduleTime: "08:00",
-//       shift: "A",
-//       tpc: 1000,
-//       machineWaste: 20,
-//       finalWaste: 10,
-//       gpc: 100,
-//       wasteReason: "Material Jam",
-//       downtimes: [],
-//       isSaved: false
-//     }
-//   ])
-//   const [newEntry, setNewEntry] = useState<DelayEntry>({
-//     startTime: "",
-//     endTime: "",
-//     scheduleTime: "",
-//     shift: "",
-//     tpc: 0,
-//     machineWaste: 0,
-//     finalWaste: 0,
-//     gpc: 0,
-//     wasteReason: "",
-//     downtimes: [],
-//     isSaved: false
-//   })
-
-//   const [metrics, setMetrics] = useState({
-//     diligenceScore: 90,
-//     delayCount: 0,
-//     wasteReasonCount: 2,
-//     speedLoss: 0,
-//     totalDT: 0,
-//     avgSpeed: 600,
-//     totalProduct: 165000,
-//     wasteProduct: 15000,
-//     goodProduct: 150000,
-//   })
-
-//   const [showReport, setShowReport] = useState(false)
-
-//   const [editMode, setEditMode] = useState<number | null>(null)
-
-//   const resetDowntimeForm = useCallback(() => {
-//     setNewDowntime({
-//       dtStart: "",
-//       dtEnd: "",
-//       dtInMin: 0,
-//       typeOfDT: "",
-//       applicator: "",
-//       delayReason: "",
-//       remarks: ""
-//     })
-//     setIsEditingDowntime(false)
-//     setCurrentDowntimeIndex(null)
-//     setIsSubmitting(false)
-//   }, [])
-
-//   const handleDowntimeChange = useCallback((field: keyof DowntimeEntry, value: string | number) => {
-//     setNewDowntime(prev => {
-//       const updated = { ...prev, [field]: value }
-      
-//       if ((field === 'dtStart' || field === 'dtEnd') && updated.dtStart && updated.dtEnd) {
-//         const [startHours, startMinutes] = updated.dtStart.toString().split(':').map(Number)
-//         const [endHours, endMinutes] = updated.dtEnd.toString().split(':').map(Number)
-        
-//         let startTotalMinutes = startHours * 60 + startMinutes
-//         let endTotalMinutes = endHours * 60 + endMinutes
-        
-//         if (endTotalMinutes < startTotalMinutes) {
-//           endTotalMinutes += 24 * 60
-//         }
-        
-//         updated.dtInMin = endTotalMinutes - startTotalMinutes
-//       }
-      
-//       return updated
-//     })
-//   }, [])
-
-//   const closeDowntimeDialog = useCallback(() => {
-//     setShowDowntimeDialog(false)
-//     resetDowntimeForm()
-//   }, [resetDowntimeForm])
-
-//   const handleSubmit = useCallback(async (e: React.FormEvent) => {
-//     e.preventDefault()
-    
-//     if (currentEntryIndex === null || isSubmitting) {
-//       return
-//     }
-
-//     setIsSubmitting(true)
-    
-//     try {
-//       // Validate that all required fields are filled
-//       if (!newDowntime.dtStart || !newDowntime.dtEnd || !newDowntime.typeOfDT || !newDowntime.applicator || !newDowntime.delayReason) {
-//         alert('Please fill in all required fields.')
-//         setIsSubmitting(false)
-//         return
-//       }
-
-//       // Validate that end time is after start time
-//       const [startHours, startMinutes] = newDowntime.dtStart.split(':').map(Number)
-//       const [endHours, endMinutes] = newDowntime.dtEnd.split(':').map(Number)
-//       let startTotalMinutes = startHours * 60 + startMinutes
-//       let endTotalMinutes = endHours * 60 + endMinutes
-      
-//       if (endTotalMinutes < startTotalMinutes) {
-//         endTotalMinutes += 24 * 60
-//       }
-      
-//       if (endTotalMinutes <= startTotalMinutes) {
-//         alert('End time must be after start time.')
-//         setIsSubmitting(false)
-//         return
-//       }
-
-//       // Check for duplicates
-//       const isDuplicate = delayEntries[currentEntryIndex].downtimes.some(dt => 
-//         dt.dtStart === newDowntime.dtStart && 
-//         dt.dtEnd === newDowntime.dtEnd &&
-//         (!isEditingDowntime || (currentDowntimeIndex !== null && dt !== delayEntries[currentEntryIndex].downtimes[currentDowntimeIndex]))
-//       )
-
-//       if (isDuplicate) {
-//         alert('A downtime entry with these start and end times already exists.')
-//         setIsSubmitting(false)
-//         return
-//       }
-
-//       setDelayEntries(prev => {
-//         const updated = [...prev]
-//         const newEntry = { ...newDowntime }
-        
-//         if (isEditingDowntime && currentDowntimeIndex !== null) {
-//           updated[currentEntryIndex] = {
-//             ...updated[currentEntryIndex],
-//             downtimes: updated[currentEntryIndex].downtimes.map((dt, idx) => 
-//               idx === currentDowntimeIndex ? newEntry : dt
-//             )
-//           }
-//         } else {
-//           updated[currentEntryIndex] = {
-//             ...updated[currentEntryIndex],
-//             downtimes: [...updated[currentEntryIndex].downtimes, newEntry]
-//           }
-//         }
-        
-//         return updated
-//       })
-
-//       closeDowntimeDialog()
-//     } catch (error) {
-//       console.error('Error adding downtime:', error)
-//       alert('An error occurred while adding the downtime entry.')
-//     } finally {
-//       setIsSubmitting(false)
-//     }
-//   }, [currentEntryIndex, isSubmitting, newDowntime, isEditingDowntime, currentDowntimeIndex, delayEntries, closeDowntimeDialog])
-
-//   const openDowntimeDialog = useCallback((index: number) => {
-//     setCurrentEntryIndex(index)
-//     resetDowntimeForm()
-//     setShowDowntimeDialog(true)
-//   }, [resetDowntimeForm])
-
-//   const editDowntime = useCallback((entryIndex: number, downtimeIndex: number) => {
-//     setCurrentEntryIndex(entryIndex)
-//     setCurrentDowntimeIndex(downtimeIndex)
-//     setIsEditingDowntime(true)
-//     setNewDowntime({ ...delayEntries[entryIndex].downtimes[downtimeIndex] })
-//     setShowDowntimeDialog(true)
-//   }, [delayEntries])
-
-//   const handleUpdate = () => {
-//     // Calculate metrics based on current delay entries
-//     const newMetrics = {
-//       delayCount: delayEntries.length,
-//       wasteReasonCount: new Set(delayEntries.map(entry => entry.wasteReason)).size,
-//       totalDT: delayEntries.reduce((sum, entry) => sum + entry.downtimes.reduce((sum, dt) => sum + dt.dtInMin, 0), 0),
-//       totalProduct: delayEntries.reduce((sum, entry) => sum + entry.tpc, 0),
-//       wasteProduct: delayEntries.reduce((sum, entry) => sum + entry.machineWaste + entry.finalWaste, 0),
-//       goodProduct: delayEntries.reduce((sum, entry) => sum + (entry.tpc - entry.machineWaste - entry.finalWaste), 0),
-//       avgSpeed: delayEntries.length > 0 
-//         ? Math.round(delayEntries.reduce((sum, entry) => sum + entry.tpc, 0) / delayEntries.length) 
-//         : 0,
-//       speedLoss: delayEntries.length > 0 
-//         ? Math.round((delayEntries.reduce((sum, entry) => sum + entry.downtimes.reduce((sum, dt) => sum + dt.dtInMin, 0), 0) / (8 * 60)) * 100) 
-//         : 0,
-//       diligenceScore: Math.round(Math.random() * 20 + 80) // Placeholder calculation
-//     }
-//     setMetrics(newMetrics)
-//   }
-
-//   const handleAddNewEntry = () => {
-//     const newEntry: DelayEntry = {
-//       startTime: "",
-//       endTime: "",
-//       scheduleTime: "",
-//       shift: "",
-//       tpc: 0,
-//       machineWaste: 0,
-//       finalWaste: 0,
-//       gpc: 0,
-//       wasteReason: "",
-//       downtimes: [],
-//       isSaved: false
-//     }
-//     setDelayEntries([...delayEntries, newEntry])
-//     setEditMode(delayEntries.length) // Set edit mode to the new entry
-//   }
-
-//   const getShiftFromTime = (time: string) => {
-//     const hour = parseInt(time.split(':')[0]);
-//     if (hour >= 6 && hour < 14) return "A";
-//     if (hour >= 14 && hour < 22) return "B";
-//     return "C";
-//   };
-
-//   const handleEntryChange = (index: number, field: keyof DelayEntry, value: any) => {
-//     const updatedEntries = [...delayEntries];
-//     updatedEntries[index] = {
-//       ...updatedEntries[index],
-//       [field]: value
-//     };
-
-//     // Automatically update shift when startTime changes
-//     if (field === 'startTime' && value) {
-//       updatedEntries[index].shift = getShiftFromTime(value);
-//     }
-
-//     setDelayEntries(updatedEntries);
-//   }
-
-//   const handleSaveEntry = (index: number) => {
-//     const updatedEntries = [...delayEntries]
-//     updatedEntries[index] = {
-//       ...updatedEntries[index],
-//       isSaved: true
-//     }
-//     setDelayEntries(updatedEntries)
-//     setEditMode(null)
-//   }
-
-//   const handleEditEntry = (index: number) => {
-//     setEditMode(index)
-//   }
-
-//   const handleDeleteEntry = (index: number) => {
-//     const updatedEntries = delayEntries.filter((_, i) => i !== index)
-//     setDelayEntries(updatedEntries)
-//   }
-
-//   const isEntryValid = (entry: DelayEntry) => {
-//     return (
-//       entry.startTime !== "" &&
-//       entry.endTime !== "" &&
-//       entry.scheduleTime !== "" &&
-//       entry.shift !== "" &&
-//       entry.tpc > 0 &&
-//       entry.machineWaste >= 0 &&
-//       entry.finalWaste >= 0 &&
-//       entry.gpc > 0 &&
-//       entry.wasteReason !== "" &&
-//       entry.downtimes.length > 0
-//     );
-//   };
-
-//   const deleteDowntime = (entryIndex: number, downtimeIndex: number) => {
-//     setDelayEntries(prev => {
-//       const updated = [...prev]
-//       updated[entryIndex].downtimes = updated[entryIndex].downtimes.filter((_, index) => index !== downtimeIndex)
-//       return updated
-//     })
-//   }
-
-//   const openDowntimeDetails = (index: number) => {
-//     setCurrentEntryIndex(index)
-//     setShowDowntimeDetailsDialog(true)
-//   }
-
-//   return (
-//     <div className="space-y-6">
-//       {/* Header */}
-//       <div className="flex items-center justify-between">
-//         <div className="flex items-center gap-4">
-//           <div className="flex items-center gap-2">
-//             <span className="font-medium">Line</span>
-//             <Select value={selectedLine} onValueChange={setSelectedLine}>
-//               <SelectTrigger className="w-[180px]">
-//                 <SelectValue />
-//               </SelectTrigger>
-//               <SelectContent>
-//                 <SelectItem value="Line 1">Line 1</SelectItem>
-//                 <SelectItem value="Line 2">Line 2</SelectItem>
-//                 <SelectItem value="Line 3">Line 3</SelectItem>
-//               </SelectContent>
-//             </Select>
-//           </div>
-//           {hasEditAccess && (
-//             <Button variant="default" className="bg-green-500 hover:bg-green-600">
-//               <Plus className="mr-2 h-4 w-4" /> Add New Line
-//             </Button>
-//           )}
-//           <Button variant="default" className="bg-gray-800 hover:bg-gray-900" onClick={handleUpdate}>
-//             Update
-//           </Button>
-//           <Button variant="default" className="bg-blue-500 hover:bg-blue-600" onClick={() => setShowReport(true)}>
-//             View Report
-//           </Button>
-//         </div>
-//       </div>
-
-//       {/* Line Details */}
-//       <Card className="mb-6">
-//         <CardContent className="p-6">
-//           <div className="mb-4 flex items-center justify-between">
-//             <h2 className="text-xl font-semibold">Line Details</h2>
-//             <div className="flex gap-4">
-//               <div className="flex items-center gap-2">
-//                 <span>Date</span>
-//                 <Input type="date" className="w-40" />
-//               </div>
-//               <div className="flex items-center gap-2">
-//                 <span>Shift Start Time</span>
-//                 <Input type="time" className="w-32" />
-//               </div>
-//               <div className="flex items-center gap-2">
-//                 <span>Shift End Time</span>
-//                 <Input type="time" className="w-32" />
-//               </div>
-//             </div>
-//           </div>
-//           <div className="grid grid-cols-4 gap-4">
-//             <Input placeholder="Line" value={lineDetails.line} disabled />
-//             <Input
-//               placeholder="Shift"
-//               value={lineDetails.shift}
-//               onChange={(e) => setLineDetails({ ...lineDetails, shift: e.target.value })}
-//             />
-//             <Input
-//               placeholder="Production Order"
-//               value={lineDetails.productionOrder}
-//               onChange={(e) => setLineDetails({ ...lineDetails, productionOrder: e.target.value })}
-//             />
-//             <Input
-//               placeholder="Production Code"
-//               value={lineDetails.productionCode}
-//               onChange={(e) => setLineDetails({ ...lineDetails, productionCode: e.target.value })}
-//             />
-//             <Input
-//               placeholder="Product Description"
-//               value={lineDetails.productDescription}
-//               onChange={(e) => setLineDetails({ ...lineDetails, productDescription: e.target.value })}
-//             />
-//             <Input
-//               placeholder="Main Operator"
-//               value={lineDetails.mainOperator}
-//               onChange={(e) => setLineDetails({ ...lineDetails, mainOperator: e.target.value })}
-//             />
-//             <Input
-//               placeholder="Assistant Operator"
-//               value={lineDetails.assistantOperator}
-//               onChange={(e) => setLineDetails({ ...lineDetails, assistantOperator: e.target.value })}
-//             />
-//             <Input
-//               placeholder="Shift Incharge"
-//               value={lineDetails.shiftIncharge}
-//               onChange={(e) => setLineDetails({ ...lineDetails, shiftIncharge: e.target.value })}
-//             />
-//           </div>
-//         </CardContent>
-//       </Card>
-
-//       {/* Metrics */}
-//       <div className="mb-6 grid grid-cols-9 gap-4">
-//         <Card className="bg-green-500 text-white">
-//           <CardContent className="p-6">
-//             <div className="text-3xl font-bold">{metrics.diligenceScore}%</div>
-//             <div className="text-sm">Diligence Score</div>
-//           </CardContent>
-//         </Card>
-//         <Card className="bg-red-500 text-white">
-//           <CardContent className="p-6">
-//             <div className="text-3xl font-bold">{metrics.delayCount}</div>
-//             <div className="text-sm">Delay Count</div>
-//           </CardContent>
-//         </Card>
-//         <Card className="bg-blue-500 text-white">
-//           <CardContent className="p-6">
-//             <div className="text-3xl font-bold">{metrics.wasteReasonCount}</div>
-//             <div className="text-sm">Waste Reason Count</div>
-//           </CardContent>
-//         </Card>
-//         <Card className="bg-green-500 text-white">
-//           <CardContent className="p-6">
-//             <div className="text-3xl font-bold">{metrics.speedLoss}%</div>
-//             <div className="text-sm">Speed Loss</div>
-//           </CardContent>
-//         </Card>
-//         <Card className="bg-green-500 text-white">
-//           <CardContent className="p-6">
-//             <div className="text-3xl font-bold">{metrics.totalDT} min</div>
-//             <div className="text-sm">Total DT</div>
-//           </CardContent>
-//         </Card>
-//         <Card className="bg-green-500 text-white">
-//           <CardContent className="p-6">
-//             <div className="text-3xl font-bold">{metrics.avgSpeed}</div>
-//             <div className="text-sm">Avg Speed</div>
-//           </CardContent>
-//         </Card>
-//         <Card className="bg-blue-500 text-white">
-//           <CardContent className="p-6">
-//             <div className="text-3xl font-bold">{metrics.totalProduct}</div>
-//             <div className="text-sm">Total Product</div>
-//           </CardContent>
-//         </Card>
-//         <Card className="bg-red-500 text-white">
-//           <CardContent className="p-6">
-//             <div className="text-3xl font-bold">{metrics.wasteProduct}</div>
-//             <div className="text-sm">Waste Product</div>
-//           </CardContent>
-//         </Card>
-//         <Card className="bg-green-500 text-white">
-//           <CardContent className="p-6">
-//             <div className="text-3xl font-bold">{metrics.goodProduct}</div>
-//             <div className="text-sm">Good Product</div>
-//           </CardContent>
-//         </Card>
-//       </div>
-
-//       {/* Delay Entries */}
-//       <Card>
-//         <CardContent className="p-6">
-//           <div className="mb-4 flex items-center justify-between">
-//             <h2 className="text-xl font-semibold">Delay Entries</h2>
-//             {hasEditAccess && (
-//               <Button
-//                 variant="default"
-//                 className="bg-green-500 hover:bg-green-600"
-//                 onClick={() => {
-//                   setDelayEntries([
-//                     {
-//                       startTime: "",
-//                       endTime: "",
-//                       scheduleTime: "",
-//                       shift: "",
-//                       tpc: 0,
-//                       machineWaste: 0,
-//                       finalWaste: 0,
-//                       gpc: 0,
-//                       wasteReason: "",
-//                       downtimes: [],
-//                       isSaved: false
-//                     },
-//                     ...delayEntries
-//                   ]);
-//                 }}
-//               >
-//                 <Plus className="mr-2 h-4 w-4" /> Add New Delay Entry
-//               </Button>
-//             )}
-//           </div>
-//           <div className="overflow-x-auto">
-//             <Table>
-//               <TableHeader>
-//                 <TableRow>
-//                   <TableHead>Start Time</TableHead>
-//                   <TableHead>End Time</TableHead>
-//                   <TableHead>Schedule Time</TableHead>
-//                   <TableHead>Shift</TableHead>
-//                   <TableHead>TPC</TableHead>
-//                   <TableHead>Machine Waste</TableHead>
-//                   <TableHead>Final Waste</TableHead>
-//                   <TableHead>GPC</TableHead>
-//                   <TableHead>Waste Reason</TableHead>
-//                   <TableHead>Downtimes</TableHead>
-//                   <TableHead>Actions</TableHead>
-//                 </TableRow>
-//               </TableHeader>
-//               <TableBody>
-//                 {delayEntries.map((entry, index) => (
-//                   <TableRow key={index} className="h-16">
-//                     <TableCell className={tableStyles.cell}>
-//                       <Input
-//                         type="time"
-//                         value={entry.startTime}
-//                         onChange={(e) => handleEntryChange(index, 'startTime', e.target.value)}
-//                         className={tableStyles.input}
-//                         disabled={entry.isSaved && editMode !== index}
-//                       />
-//                     </TableCell>
-//                     <TableCell className={tableStyles.cell}>
-//                       <Input
-//                         type="time"
-//                         value={entry.endTime}
-//                         onChange={(e) => handleEntryChange(index, 'endTime', e.target.value)}
-//                         className={tableStyles.input}
-//                         disabled={entry.isSaved && editMode !== index}
-//                       />
-//                     </TableCell>
-//                     <TableCell className={tableStyles.cell}>
-//                       <Input
-//                         type="time"
-//                         value={entry.scheduleTime}
-//                         onChange={(e) => handleEntryChange(index, 'scheduleTime', e.target.value)}
-//                         className={tableStyles.input}
-//                         disabled={entry.isSaved && editMode !== index}
-//                       />
-//                     </TableCell>
-//                     <TableCell className={tableStyles.cell}>
-//                       <Select
-//                         value={entry.shift}
-//                         onValueChange={(value) => handleEntryChange(index, 'shift', value)}
-//                         className={tableStyles.select}
-//                         disabled={entry.isSaved && editMode !== index}
-//                       >
-//                         <SelectTrigger>
-//                           <SelectValue placeholder="Select shift" />
-//                         </SelectTrigger>
-//                         <SelectContent>
-//                           <SelectItem value="A">A</SelectItem>
-//                           <SelectItem value="B">B</SelectItem>
-//                           <SelectItem value="C">C</SelectItem>
-//                         </SelectContent>
-//                       </Select>
-//                     </TableCell>
-//                     <TableCell className={tableStyles.cell}>
-//                       <Input
-//                         type="number"
-//                         value={entry.tpc?.toString() || ''}
-//                         onChange={(e) => handleEntryChange(index, 'tpc', Number(e.target.value))}
-//                         className={tableStyles.input}
-//                         placeholder="Enter TPC"
-//                         disabled={entry.isSaved && editMode !== index}
-//                       />
-//                     </TableCell>
-//                     <TableCell className={tableStyles.cell}>
-//                       <Input
-//                         type="number"
-//                         value={entry.machineWaste?.toString() || ''}
-//                         onChange={(e) => handleEntryChange(index, 'machineWaste', Number(e.target.value))}
-//                         className={tableStyles.input}
-//                         placeholder="Enter waste"
-//                         disabled={entry.isSaved && editMode !== index}
-//                       />
-//                     </TableCell>
-//                     <TableCell className={tableStyles.cell}>
-//                       <Input
-//                         type="number"
-//                         value={entry.finalWaste?.toString() || ''}
-//                         onChange={(e) => handleEntryChange(index, 'finalWaste', Number(e.target.value))}
-//                         className={tableStyles.input}
-//                         placeholder="Enter waste"
-//                         disabled={entry.isSaved && editMode !== index}
-//                       />
-//                     </TableCell>
-//                     <TableCell className={tableStyles.cell}>
-//                       <Input
-//                         type="number"
-//                         value={entry.gpc?.toString() || ''}
-//                         onChange={(e) => handleEntryChange(index, 'gpc', Number(e.target.value))}
-//                         className={tableStyles.input}
-//                         placeholder="Enter GPC"
-//                         disabled={entry.isSaved && editMode !== index}
-//                       />
-//                     </TableCell>
-//                     <TableCell className={tableStyles.cell}>
-//                       <Select
-//                         value={entry.wasteReason}
-//                         onValueChange={(value) => handleEntryChange(index, 'wasteReason', value)}
-//                         className={tableStyles.select}
-//                         disabled={entry.isSaved && editMode !== index}
-//                       >
-//                         <SelectTrigger>
-//                           <SelectValue placeholder="Select reason" />
-//                         </SelectTrigger>
-//                         <SelectContent>
-//                           {machineWasteReasons.map((reason) => (
-//                             <SelectItem key={reason} value={reason}>{reason}</SelectItem>
-//                           ))}
-//                         </SelectContent>
-//                       </Select>
-//                     </TableCell>
-//                     <TableCell className={tableStyles.cell}>
-//                       <div className="flex flex-col gap-1">
-//                         {entry.downtimes.map((dt, dtIndex) => (
-//                           <div key={dtIndex} className="text-sm flex items-center gap-2 p-1 hover:bg-gray-100 rounded">
-//                             <button 
-//                               onClick={() => editDowntime(index, dtIndex)}
-//                               className="flex-1 text-left"
-//                             >
-//                               {dt.dtStart}-{dt.dtEnd} ({dt.typeOfDT})
-//                             </button>
-//                             <button
-//                               onClick={() => deleteDowntime(index, dtIndex)}
-//                               className="text-red-500 hover:text-red-700"
-//                             >
-//                               ×
-//                             </button>
-//                           </div>
-//                         ))}
-//                         {hasEditAccess && (
-//                           <div className="flex gap-2">
-//                             <Button
-//                               variant="outline"
-//                               size="sm"
-//                               onClick={() => openDowntimeDialog(index)}
-//                               disabled={entry.isSaved && editMode !== index}
-//                             >
-//                               <Plus className="h-4 w-4 mr-1" />
-//                               Add Downtime
-//                             </Button>
-//                             {entry.downtimes.length > 0 && (
-//                               <Button
-//                                 variant="outline"
-//                                 size="sm"
-//                                 onClick={() => openDowntimeDetails(index)}
-//                               >
-//                                 View Details
-//                               </Button>
-//                             )}
-//                           </div>
-//                         )}
-//                       </div>
-//                     </TableCell>
-//                     <TableCell className="flex gap-2 min-w-[200px]">
-//                       {!entry.isSaved ? (
-//                         // New entry - show Save and Delete
-//                         <>
-//                           <Button
-//                             onClick={() => handleSaveEntry(index)}
-//                             className={`${isEntryValid(entry) ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-400 cursor-not-allowed'}`}
-//                             disabled={!isEntryValid(entry)}
-//                             title={!isEntryValid(entry) ? "Please fill all required fields" : ""}
-//                           >
-//                             Save
-//                           </Button>
-//                           <Button
-//                             onClick={() => handleDeleteEntry(index)}
-//                             className="bg-red-500 hover:bg-red-600"
-//                           >
-//                             Delete
-//                           </Button>
-//                         </>
-//                       ) : editMode === index ? (
-//                         // Editing saved entry - show Save and Delete
-//                         <>
-//                           <Button
-//                             onClick={() => handleSaveEntry(index)}
-//                             className={`${isEntryValid(entry) ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-400 cursor-not-allowed'}`}
-//                             disabled={!isEntryValid(entry)}
-//                             title={!isEntryValid(entry) ? "Please fill all required fields" : ""}
-//                           >
-//                             Save
-//                           </Button>
-//                           <Button
-//                             onClick={() => handleDeleteEntry(index)}
-//                             className="bg-red-500 hover:bg-red-600"
-//                           >
-//                             Delete
-//                           </Button>
-//                         </>
-//                       ) : (
-//                         // Saved entry (not in edit mode) - show Edit and Delete
-//                         <>
-//                           {hasEditAccess && (
-//                             <Button
-//                               onClick={() => handleEditEntry(index)}
-//                               className="bg-blue-500 hover:bg-blue-600"
-//                             >
-//                               Edit
-//                             </Button>
-//                           )}
-//                           <Button
-//                             onClick={() => handleDeleteEntry(index)}
-//                             className="bg-red-500 hover:bg-red-600"
-//                           >
-//                             Delete
-//                           </Button>
-//                         </>
-//                       )}
-//                     </TableCell>
-//                   </TableRow>
-//                 ))}
-//               </TableBody>
-//             </Table>
-//           </div>
-//         </CardContent>
-//       </Card>
-
-//       {hasEditAccess && (
-//         <Dialog 
-//           open={showDowntimeDialog} 
-//           onOpenChange={(open) => {
-//             if (!open && !isSubmitting) {
-//               closeDowntimeDialog()
-//             }
-//           }}
-//         >
-//           <DialogContent className="max-w-3xl">
-//             <DialogHeader>
-//               <DialogTitle>{isEditingDowntime ? 'Edit Downtime Entry' : 'Add Downtime Entry'}</DialogTitle>
-//             </DialogHeader>
-//             <form onSubmit={handleSubmit}>
-//               <div className="grid grid-cols-2 gap-4">
-//                 <div className="space-y-2">
-//                   <label>Start Time</label>
-//                   <Input
-//                     type="time"
-//                     value={newDowntime.dtStart}
-//                     onChange={(e) => handleDowntimeChange('dtStart', e.target.value)}
-//                     required
-//                     disabled={isSubmitting}
-//                   />
-//                 </div>
-//                 <div className="space-y-2">
-//                   <label>End Time</label>
-//                   <Input
-//                     type="time"
-//                     value={newDowntime.dtEnd}
-//                     onChange={(e) => handleDowntimeChange('dtEnd', e.target.value)}
-//                     required
-//                     disabled={isSubmitting}
-//                   />
-//                 </div>
-//                 <div className="space-y-2">
-//                   <label>Duration (minutes)</label>
-//                   <Input
-//                     type="number"
-//                     value={newDowntime.dtInMin}
-//                     readOnly
-//                     disabled
-//                   />
-//                 </div>
-//                 <div className="space-y-2">
-//                   <label>Type of DT</label>
-//                   <Select
-//                     value={newDowntime.typeOfDT}
-//                     onValueChange={(value) => handleDowntimeChange('typeOfDT', value)}
-//                     disabled={isSubmitting}
-//                   >
-//                     <SelectTrigger>
-//                       <SelectValue placeholder="Select type" />
-//                     </SelectTrigger>
-//                     <SelectContent>
-//                       {dtTypes.map((type) => (
-//                         <SelectItem key={type} value={type}>
-//                           {type}
-//                         </SelectItem>
-//                       ))}
-//                     </SelectContent>
-//                   </Select>
-//                 </div>
-//                 <div className="space-y-2">
-//                   <label>Applicator</label>
-//                   <Select
-//                     value={newDowntime.applicator}
-//                     onValueChange={(value) => handleDowntimeChange('applicator', value)}
-//                     disabled={isSubmitting}
-//                   >
-//                     <SelectTrigger>
-//                       <SelectValue placeholder="Select applicator" />
-//                     </SelectTrigger>
-//                     <SelectContent>
-//                       {newDowntime.typeOfDT && applicatorsByDtType[newDowntime.typeOfDT]?.map((applicator) => (
-//                         <SelectItem key={applicator} value={applicator}>
-//                           {applicator}
-//                         </SelectItem>
-//                       ))}
-//                     </SelectContent>
-//                   </Select>
-//                 </div>
-//                 <div className="space-y-2">
-//                   <label>Delay Reason</label>
-//                   <Select
-//                     value={newDowntime.delayReason}
-//                     onValueChange={(value) => handleDowntimeChange('delayReason', value)}
-//                     disabled={isSubmitting}
-//                   >
-//                     <SelectTrigger>
-//                       <SelectValue placeholder="Select reason" />
-//                     </SelectTrigger>
-//                     <SelectContent>
-//                       {newDowntime.typeOfDT && delayReasonsByDtType[newDowntime.typeOfDT]?.map((reason) => (
-//                         <SelectItem key={reason} value={reason}>
-//                           {reason}
-//                         </SelectItem>
-//                       ))}
-//                     </SelectContent>
-//                   </Select>
-//                 </div>
-//                 <div className="col-span-2 space-y-2">
-//                   <label>Remarks</label>
-//                   <Input
-//                     value={newDowntime.remarks}
-//                     onChange={(e) => handleDowntimeChange('remarks', e.target.value)}
-//                     placeholder="Enter remarks"
-//                     disabled={isSubmitting}
-//                   />
-//                 </div>
-//               </div>
-//               <DialogFooter>
-//                 <Button 
-//                   type="submit"
-//                   disabled={isSubmitting}
-//                 >
-//                   {isEditingDowntime ? 'Update' : 'Add'} Downtime
-//                 </Button>
-//               </DialogFooter>
-//             </form>
-//           </DialogContent>
-//         </Dialog>
-//       )}
-
-//       <Dialog open={showDowntimeDetailsDialog} onOpenChange={setShowDowntimeDetailsDialog}>
-//         <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-//           <DialogHeader>
-//             <DialogTitle>Downtime Details for Shift</DialogTitle>
-//           </DialogHeader>
-//           {currentEntryIndex !== null && (
-//             <div className="space-y-4">
-//               <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded">
-//                 <div>
-//                   <p className="font-semibold">Shift Time:</p>
-//                   <p>{delayEntries[currentEntryIndex].startTime} - {delayEntries[currentEntryIndex].endTime}</p>
-//                 </div>
-//                 <div>
-//                   <p className="font-semibold">Total Downtimes:</p>
-//                   <p>{delayEntries[currentEntryIndex].downtimes.length}</p>
-//                 </div>
-//               </div>
-              
-//               <div className="space-y-2">
-//                 <h3 className="font-semibold text-lg">Downtime Entries</h3>
-//                 <Table>
-//                   <TableHeader>
-//                     <TableRow>
-//                       <TableHead>Start Time</TableHead>
-//                       <TableHead>End Time</TableHead>
-//                       <TableHead>Duration (min)</TableHead>
-//                       <TableHead>Type</TableHead>
-//                       <TableHead>Applicator</TableHead>
-//                       <TableHead>Reason</TableHead>
-//                       <TableHead>Remarks</TableHead>
-//                       <TableHead>Actions</TableHead>
-//                     </TableRow>
-//                   </TableHeader>
-//                   <TableBody>
-//                     {delayEntries[currentEntryIndex].downtimes.map((dt, dtIndex) => (
-//                       <TableRow key={dtIndex}>
-//                         <TableCell>{dt.dtStart}</TableCell>
-//                         <TableCell>{dt.dtEnd}</TableCell>
-//                         <TableCell>{dt.dtInMin}</TableCell>
-//                         <TableCell>{dt.typeOfDT}</TableCell>
-//                         <TableCell>{dt.applicator}</TableCell>
-//                         <TableCell>{dt.delayReason}</TableCell>
-//                         <TableCell>{dt.remarks}</TableCell>
-//                         <TableCell>
-//                           <div className="flex gap-2">
-//                             {hasEditAccess && (
-//                               <Button
-//                                 variant="outline"
-//                                 size="sm"
-//                                 onClick={() => {
-//                                   editDowntime(currentEntryIndex, dtIndex)
-//                                   setShowDowntimeDetailsDialog(false)
-//                                 }}
-//                               >
-//                                 Edit
-//                               </Button>
-//                             )}
-//                             <Button
-//                               variant="outline"
-//                               size="sm"
-//                               className="text-red-500 hover:text-red-700"
-//                               onClick={() => deleteDowntime(currentEntryIndex, dtIndex)}
-//                             >
-//                               Delete
-//                             </Button>
-//                           </div>
-//                         </TableCell>
-//                       </TableRow>
-//                     ))}
-//                   </TableBody>
-//                 </Table>
-
-//                 <div className="mt-4">
-//                   <h3 className="font-semibold text-lg mb-2">Summary</h3>
-//                   <div className="grid grid-cols-2 gap-4">
-//                     <div>
-//                       <p className="font-semibold">Total Downtime Duration:</p>
-//                       <p>{delayEntries[currentEntryIndex].downtimes.reduce((sum, dt) => sum + dt.dtInMin, 0)} minutes</p>
-//                     </div>
-//                     <div>
-//                       <p className="font-semibold">Most Common Type:</p>
-//                       <p>{
-//                         Object.entries(
-//                           delayEntries[currentEntryIndex].downtimes.reduce((acc, dt) => {
-//                             acc[dt.typeOfDT] = (acc[dt.typeOfDT] || 0) + 1
-//                             return acc
-//                           }, {} as Record<string, number>)
-//                         ).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A'
-//                       }</p>
-//                     </div>
-//                   </div>
-//                 </div>
-//               </div>
-//             </div>
-//           )}
-//         </DialogContent>
-//       </Dialog>
-
-//       {/* Report Dialog */}
-//       <Dialog open={showReport} onOpenChange={setShowReport}>
-//         <DialogContent className="sm:max-w-[80vw] max-h-[80vh] overflow-y-auto">
-//           <DialogHeader>
-//             <DialogTitle>Downtime Report</DialogTitle>
-//           </DialogHeader>
-//           <div className="space-y-6">
-//             <div className="grid grid-cols-2 gap-4">
-//               <Card>
-//                 <CardContent className="p-4">
-//                   <h3 className="font-semibold mb-2">Line Details</h3>
-//                   <div className="space-y-2">
-//                     <p>Line: {lineDetails.line}</p>
-//                     <p>Shift: {lineDetails.shift}</p>
-//                     <p>Production Order: {lineDetails.productionOrder}</p>
-//                     <p>Production Code: {lineDetails.productionCode}</p>
-//                   </div>
-//                 </CardContent>
-//               </Card>
-//               <Card>
-//                 <CardContent className="p-4">
-//                   <h3 className="font-semibold mb-2">Personnel</h3>
-//                   <div className="space-y-2">
-//                     <p>Main Operator: {lineDetails.mainOperator}</p>
-//                     <p>Assistant Operator: {lineDetails.assistantOperator}</p>
-//                     <p>Shift Incharge: {lineDetails.shiftIncharge}</p>
-//                   </div>
-//                 </CardContent>
-//               </Card>
-//             </div>
-//             <Card>
-//               <CardContent className="p-4">
-//                 <h3 className="font-semibold mb-2">Performance Metrics</h3>
-//                 <div className="grid grid-cols-3 gap-4">
-//                   <div>
-//                     <p className="font-medium">Diligence Score</p>
-//                     <p className="text-2xl">{metrics.diligenceScore}%</p>
-//                   </div>
-//                   <div>
-//                     <p className="font-medium">Total Downtime</p>
-//                     <p className="text-2xl">{metrics.totalDT} min</p>
-//                   </div>
-//                   <div>
-//                     <p className="font-medium">Speed Loss</p>
-//                     <p className="text-2xl">{metrics.speedLoss}%</p>
-//                   </div>
-//                   <div>
-//                     <p className="font-medium">Total Product</p>
-//                     <p className="text-2xl">{metrics.totalProduct}</p>
-//                   </div>
-//                   <div>
-//                     <p className="font-medium">Good Product</p>
-//                     <p className="text-2xl">{metrics.goodProduct}</p>
-//                   </div>
-//                   <div>
-//                     <p className="font-medium">Waste Product</p>
-//                     <p className="text-2xl">{metrics.wasteProduct}</p>
-//                   </div>
-//                 </div>
-//               </CardContent>
-//             </Card>
-//             <Card>
-//               <CardContent className="p-4">
-//                 <h3 className="font-semibold mb-4">Delay Entries Summary</h3>
-//                 <Table>
-//                   <TableHeader>
-//                     <TableRow>
-//                       <TableHead>Type of DT</TableHead>
-//                       <TableHead>Total Duration (min)</TableHead>
-//                       <TableHead>Count</TableHead>
-//                       <TableHead>Waste</TableHead>
-//                     </TableRow>
-//                   </TableHeader>
-//                   <TableBody>
-//                     {Object.entries(
-//                       delayEntries.reduce((acc, entry) => {
-//                         const key = entry.typeOfDT || 'Unspecified'
-//                         if (!acc[key]) {
-//                           acc[key] = { duration: 0, count: 0, waste: 0 }
-//                         }
-//                         acc[key].duration += entry.downtimes.reduce((sum, dt) => sum + dt.dtInMin, 0)
-//                         acc[key].count += 1
-//                         acc[key].waste += entry.machineWaste + entry.finalWaste
-//                         return acc
-//                       }, {} as Record<string, { duration: number; count: number; waste: number }>)
-//                     ).map(([type, data]) => (
-//                       <TableRow key={type}>
-//                         <TableCell>{type}</TableCell>
-//                         <TableCell>{data.duration}</TableCell>
-//                         <TableCell>{data.count}</TableCell>
-//                         <TableCell>{data.waste}</TableCell>
-//                       </TableRow>
-//                     ))}
-//                   </TableBody>
-//                 </Table>
-//               </CardContent>
-//             </Card>
-//           </div>
-//         </DialogContent>
-//       </Dialog>
-//     </div>
-//   )
-// }
-
-// // Wrap the component with role check
-// export default withRoleCheck(DowntimeTracker, {
-//   feature: 'downtimeTracker',
-//   requiredAccess: 'read'
-// });
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Plus } from "lucide-react"
+import { TooltipProvider } from "@/components/ui/tooltip"
+import { withRoleCheck } from "@/components/auth/with-role-check"
+import { motion } from "framer-motion"
+import DatePicker from "react-datepicker"
+import "react-datepicker/dist/react-datepicker.css"
+import { format } from "date-fns"
+import { Plus, Clock, FileText, AlertTriangle, CheckCircle2, Activity, Settings2, Users, BarChart3, Calendar, Clock3, Save, Trash2, Pencil, Eye, X } from "lucide-react"
 
 // Dropdown options
 const machineWasteReasons = [
@@ -1182,51 +47,124 @@ const delayReasonsByDtType = {
   "Quality Check": ["Product Testing", "Quality Audit", "Sample Inspection", "Parameter Adjustment"]
 }
 
-// Types
-interface DowntimeEntry {
-  dtStart: string
-  dtEnd: string
-  dtInMin: number
-  typeOfDT: string
-  applicator: string
-  delayReason: string
-  remarks: string
-}
+// Operator options
+const operators = [
+  "John Smith",
+  "Maria Garcia",
+  "David Johnson",
+  "Sarah Lee",
+  "Michael Brown",
+  "Lisa Chen",
+  "Robert Wilson",
+  "Emily Davis"
+]
 
-interface DelayEntry {
-  startTime: string
-  endTime: string
-  scheduleTime: string
-  shift: string
-  tpc: number
-  machineWaste: number
-  finalWaste: number
-  gpc: number
-  wasteReason: string
-  downtimes: DowntimeEntry[]
-  isSaved?: boolean
-}
+// RM options
+const rmOptions = [
+  "RM-101: Plastic Granules",
+  "RM-102: Aluminum Foil",
+  "RM-103: Cardboard",
+  "RM-104: Glass Beads",
+  "RM-105: Steel Wire",
+  "RM-106: Copper Strips",
+  "RM-107: Rubber Compound",
+  "RM-108: Textile Fiber"
+]
 
-interface LineDetails {
-  line: string
-  shift: string
-  productionOrder: string
-  productionCode: string
-  productDescription: string
-  mainOperator: string
-  assistantOperator: string
-  shiftIncharge: string
-}
+// Shift options
+const shifts = ["A", "B", "C"]
 
 const tableStyles = {
-  input: "w-full h-10",
+  input: "w-full h-10 rounded-lg border-gray-200 bg-white dark:bg-gray-800 dark:border-gray-700 focus:ring-2 focus:ring-blue-500 transition-all duration-200",
   select: "w-full h-10",
   cell: "min-w-[120px] p-2"
 }
 
+const cardVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 }
+}
+
+const MetricCard = ({ icon: Icon, title, value, color }) => (
+  <motion.div
+    variants={cardVariants}
+    initial="hidden"
+    animate="visible"
+    transition={{ duration: 0.3 }}
+    className={`${color} rounded-xl shadow-lg hover:shadow-xl transform hover:-translate-y-1 transition-all duration-300`}
+  >
+    <CardContent className="p-6">
+      <div className="flex items-center space-x-4">
+        <div className="p-3 bg-white/10 rounded-lg">
+          <Icon className="h-6 w-6 text-white" />
+        </div>
+        <div>
+          <div className="text-3xl font-bold text-white">{value}</div>
+          <div className="text-sm text-white/80">{title}</div>
+        </div>
+      </div>
+    </CardContent>
+  </motion.div>
+)
+
 export default function DowntimeTracker() {
+  // Add CSS variables for sticky header heights
+  useEffect(() => {
+    // Function to update CSS variables based on actual element heights
+    const updateHeaderHeights = () => {
+      const lineDetailsCard = document.querySelector('.line-details-card');
+      const metricsCard = document.querySelector('.metrics-card');
+      
+      if (lineDetailsCard) {
+        const lineDetailsHeight = lineDetailsCard.getBoundingClientRect().height;
+        document.documentElement.style.setProperty('--header-height', `${lineDetailsHeight}px`);
+      }
+      
+      if (metricsCard) {
+        const metricsHeight = metricsCard.getBoundingClientRect().height;
+        document.documentElement.style.setProperty('--metrics-height', `${metricsHeight}px`);
+      }
+    };
+    
+    // Set initial fallback values
+    document.documentElement.style.setProperty('--header-height', '150px');
+    document.documentElement.style.setProperty('--metrics-height', '120px');
+    
+    // Delay the initial measurement to ensure components are fully rendered
+    const initialTimer = setTimeout(() => {
+      updateHeaderHeights();
+    }, 100);
+    
+    // Update on window resize
+    window.addEventListener('resize', updateHeaderHeights);
+    
+    // Update when content might change
+    const observer = new MutationObserver(updateHeaderHeights);
+    const lineDetailsCard = document.querySelector('.line-details-card');
+    const metricsCard = document.querySelector('.metrics-card');
+    
+    if (lineDetailsCard && metricsCard) {
+      observer.observe(lineDetailsCard, { attributes: true, childList: true, subtree: true });
+      observer.observe(metricsCard, { attributes: true, childList: true, subtree: true });
+    }
+    
+    return () => {
+      // Clean up
+      clearTimeout(initialTimer);
+      window.removeEventListener('resize', updateHeaderHeights);
+      observer.disconnect();
+      document.documentElement.style.removeProperty('--header-height');
+      document.documentElement.style.removeProperty('--metrics-height');
+    };
+  }, []);
+
   const [selectedLine, setSelectedLine] = useState("Line 1")
-  const [lineDetails, setLineDetails] = useState<LineDetails>({
+  const [selectedDate, setSelectedDate] = useState(new Date())
+  const [shiftStartTime, setShiftStartTime] = useState(new Date())
+  const [shiftEndTime, setShiftEndTime] = useState(new Date())
+  const [selectedShift, setSelectedShift] = useState(shifts[0])
+  const [selectedOperator, setSelectedOperator] = useState(operators[0])
+  const [lineDetails, setLineDetails] = useState({
     line: "Line 1",
     shift: "",
     productionOrder: "",
@@ -1235,6 +173,8 @@ export default function DowntimeTracker() {
     mainOperator: "",
     assistantOperator: "",
     shiftIncharge: "",
+    rm1: "",
+    rm2: "",
   })
   const [showDowntimeDialog, setShowDowntimeDialog] = useState(false)
   const [showDowntimeDetailsDialog, setShowDowntimeDetailsDialog] = useState(false)
@@ -1242,7 +182,7 @@ export default function DowntimeTracker() {
   const [currentDowntimeIndex, setCurrentDowntimeIndex] = useState<number | null>(null)
   const [isEditingDowntime, setIsEditingDowntime] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [newDowntime, setNewDowntime] = useState<DowntimeEntry>({
+  const [newDowntime, setNewDowntime] = useState({
     dtStart: "",
     dtEnd: "",
     dtInMin: 0,
@@ -1251,7 +191,7 @@ export default function DowntimeTracker() {
     delayReason: "",
     remarks: ""
   })
-  const [delayEntries, setDelayEntries] = useState<DelayEntry[]>([
+  const [delayEntries, setDelayEntries] = useState([
     {
       startTime: "08:00",
       endTime: "08:30",
@@ -1266,7 +206,7 @@ export default function DowntimeTracker() {
       isSaved: false
     }
   ])
-  const [newEntry, setNewEntry] = useState<DelayEntry>({
+  const [newEntry, setNewEntry] = useState({
     startTime: "",
     endTime: "",
     scheduleTime: "",
@@ -1311,7 +251,7 @@ export default function DowntimeTracker() {
     setIsSubmitting(false)
   }, [])
 
-  const handleDowntimeChange = useCallback((field: keyof DowntimeEntry, value: string | number) => {
+  const handleDowntimeChange = useCallback((field, value) => {
     setNewDowntime(prev => {
       const updated = { ...prev, [field]: value }
       
@@ -1338,7 +278,7 @@ export default function DowntimeTracker() {
     resetDowntimeForm()
   }, [resetDowntimeForm])
 
-  const handleSubmit = useCallback(async (e: React.FormEvent) => {
+  const handleSubmit = useCallback(async (e) => {
     e.preventDefault()
     
     if (currentEntryIndex === null || isSubmitting) {
@@ -1414,13 +354,13 @@ export default function DowntimeTracker() {
     }
   }, [currentEntryIndex, isSubmitting, newDowntime, isEditingDowntime, currentDowntimeIndex, delayEntries, closeDowntimeDialog])
 
-  const openDowntimeDialog = useCallback((index: number) => {
+  const openDowntimeDialog = useCallback((index) => {
     setCurrentEntryIndex(index)
     resetDowntimeForm()
     setShowDowntimeDialog(true)
   }, [resetDowntimeForm])
 
-  const editDowntime = useCallback((entryIndex: number, downtimeIndex: number) => {
+  const editDowntime = useCallback((entryIndex, downtimeIndex) => {
     setCurrentEntryIndex(entryIndex)
     setCurrentDowntimeIndex(downtimeIndex)
     setIsEditingDowntime(true)
@@ -1428,28 +368,91 @@ export default function DowntimeTracker() {
     setShowDowntimeDialog(true)
   }, [delayEntries])
 
-  const handleUpdate = () => {
-    // Calculate metrics based on current delay entries
-    const newMetrics = {
-      delayCount: delayEntries.length,
-      wasteReasonCount: new Set(delayEntries.map(entry => entry.wasteReason)).size,
-      totalDT: delayEntries.reduce((sum, entry) => sum + entry.downtimes.reduce((sum, dt) => sum + dt.dtInMin, 0), 0),
-      totalProduct: delayEntries.reduce((sum, entry) => sum + entry.tpc, 0),
-      wasteProduct: delayEntries.reduce((sum, entry) => sum + entry.machineWaste + entry.finalWaste, 0),
-      goodProduct: delayEntries.reduce((sum, entry) => sum + (entry.tpc - entry.machineWaste - entry.finalWaste), 0),
-      avgSpeed: delayEntries.length > 0 
-        ? Math.round(delayEntries.reduce((sum, entry) => sum + entry.tpc, 0) / delayEntries.length) 
-        : 0,
-      speedLoss: delayEntries.length > 0 
-        ? Math.round((delayEntries.reduce((sum, entry) => sum + entry.downtimes.reduce((sum, dt) => sum + dt.dtInMin, 0), 0) / (8 * 60)) * 100) 
-        : 0,
-      diligenceScore: Math.round(Math.random() * 20 + 80) // Placeholder calculation
-    }
-    setMetrics(newMetrics)
-  }
+  const handleUpdate = useCallback(() => {
+    // Update lineDetails with the selected values from the header
+    setLineDetails({
+      ...lineDetails,
+      line: selectedLine,
+      shift: selectedShift,
+      mainOperator: selectedOperator,
+      // Keep other fields as they are
+    });
+    
+    // Show success message or notification here if needed
+    alert("Line details updated successfully!");
+  }, [selectedLine, selectedShift, selectedOperator, lineDetails]);
 
-  const handleAddNewEntry = () => {
-    const newEntry: DelayEntry = {
+  const handleEntryChange = useCallback((index, field, value) => {
+    const updatedEntries = [...delayEntries];
+    updatedEntries[index] = {
+      ...updatedEntries[index],
+      [field]: value
+    };
+
+    // Automatically update shift when startTime changes
+    if (field === 'startTime' && value) {
+      updatedEntries[index].shift = getShiftFromTime(value);
+    }
+
+    setDelayEntries(updatedEntries);
+  }, [delayEntries])
+
+  const handleSaveEntry = useCallback((index) => {
+    const updatedEntries = [...delayEntries]
+    updatedEntries[index] = {
+      ...updatedEntries[index],
+      isSaved: true
+    }
+    setDelayEntries(updatedEntries)
+    setEditMode(null)
+  }, [delayEntries])
+
+  const handleEditEntry = useCallback((index) => {
+    setEditMode(index)
+  }, [])
+
+  const handleDeleteEntry = useCallback((index) => {
+    const updatedEntries = delayEntries.filter((_, i) => i !== index)
+    setDelayEntries(updatedEntries)
+  }, [delayEntries])
+
+  const isEntryValid = useCallback((entry) => {
+    return (
+      entry.startTime !== "" &&
+      entry.endTime !== "" &&
+      entry.scheduleTime !== "" &&
+      entry.shift !== "" &&
+      entry.tpc > 0 &&
+      entry.machineWaste >= 0 &&
+      entry.finalWaste >= 0 &&
+      entry.gpc > 0 &&
+      entry.wasteReason !== "" &&
+      entry.downtimes.length > 0
+    );
+  }, []);
+
+  const deleteDowntime = useCallback((entryIndex, downtimeIndex) => {
+    setDelayEntries(prev => {
+      const updated = [...prev]
+      updated[entryIndex].downtimes = updated[entryIndex].downtimes.filter((_, index) => index !== downtimeIndex)
+      return updated
+    })
+  }, [delayEntries])
+
+  const openDowntimeDetails = useCallback((index) => {
+    setCurrentEntryIndex(index)
+    setShowDowntimeDetailsDialog(true)
+  }, [])
+
+  const getShiftFromTime = useCallback((time) => {
+    const hour = parseInt(time.split(':')[0]);
+    if (hour >= 6 && hour < 14) return "A";
+    if (hour >= 14 && hour < 22) return "B";
+    return "C";
+  }, []);
+
+  const handleAddNewEntry = useCallback(() => {
+    const newEntry = {
       startTime: "",
       endTime: "",
       scheduleTime: "",
@@ -1464,434 +467,519 @@ export default function DowntimeTracker() {
     }
     setDelayEntries([...delayEntries, newEntry])
     setEditMode(delayEntries.length) // Set edit mode to the new entry
-  }
-
-  const getShiftFromTime = (time: string) => {
-    const hour = parseInt(time.split(':')[0]);
-    if (hour >= 6 && hour < 14) return "A";
-    if (hour >= 14 && hour < 22) return "B";
-    return "C";
-  };
-
-  const handleEntryChange = (index: number, field: keyof DelayEntry, value: any) => {
-    const updatedEntries = [...delayEntries];
-    updatedEntries[index] = {
-      ...updatedEntries[index],
-      [field]: value
-    };
-
-    // Automatically update shift when startTime changes
-    if (field === 'startTime' && value) {
-      updatedEntries[index].shift = getShiftFromTime(value);
-    }
-
-    setDelayEntries(updatedEntries);
-  }
-
-  const handleSaveEntry = (index: number) => {
-    const updatedEntries = [...delayEntries]
-    updatedEntries[index] = {
-      ...updatedEntries[index],
-      isSaved: true
-    }
-    setDelayEntries(updatedEntries)
-    setEditMode(null)
-  }
-
-  const handleEditEntry = (index: number) => {
-    setEditMode(index)
-  }
-
-  const handleDeleteEntry = (index: number) => {
-    const updatedEntries = delayEntries.filter((_, i) => i !== index)
-    setDelayEntries(updatedEntries)
-  }
-
-  const isEntryValid = (entry: DelayEntry) => {
-    return (
-      entry.startTime !== "" &&
-      entry.endTime !== "" &&
-      entry.scheduleTime !== "" &&
-      entry.shift !== "" &&
-      entry.tpc > 0 &&
-      entry.machineWaste >= 0 &&
-      entry.finalWaste >= 0 &&
-      entry.gpc > 0 &&
-      entry.wasteReason !== "" &&
-      entry.downtimes.length > 0
-    );
-  };
-
-  const deleteDowntime = (entryIndex: number, downtimeIndex: number) => {
-    setDelayEntries(prev => {
-      const updated = [...prev]
-      updated[entryIndex].downtimes = updated[entryIndex].downtimes.filter((_, index) => index !== downtimeIndex)
-      return updated
-    })
-  }
-
-  const openDowntimeDetails = (index: number) => {
-    setCurrentEntryIndex(index)
-    setShowDowntimeDetailsDialog(true)
-  }
+  }, [delayEntries]);
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <span className="font-medium">Line</span>
-            <Select value={selectedLine} onValueChange={setSelectedLine}>
-              <SelectTrigger className="w-[180px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Line 1">Line 1</SelectItem>
-                <SelectItem value="Line 2">Line 2</SelectItem>
-                <SelectItem value="Line 3">Line 3</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <Button variant="default" className="bg-green-500 hover:bg-green-600">
-            <Plus className="mr-2 h-4 w-4" /> Add New Line
-          </Button>
-          <Button variant="default" className="bg-gray-800 hover:bg-gray-900" onClick={handleUpdate}>
-            Update
-          </Button>
-          <Button variant="default" className="bg-blue-500 hover:bg-blue-600" onClick={() => setShowReport(true)}>
-            View Report
-          </Button>
+    <div className="space-y-4">
+      {/* Combined Header - More Compact */}
+      <Card className="line-details-card mb-3 overflow-hidden border-0 shadow-lg sticky top-0 ">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-700 p-2">
+          <h2 className="text-lg font-bold text-white">Production Line Details</h2>
         </div>
-      </div>
-
-      {/* Line Details */}
-      <Card className="mb-6">
-        <CardContent className="p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Line Details</h2>
-            <div className="flex gap-4">
-              <div className="flex items-center gap-2">
-                <span>Date</span>
-                <Input type="date" className="w-40" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span>Shift Start Time</span>
-                <Input type="time" className="w-32" />
-              </div>
-              <div className="flex items-center gap-2">
-                <span>Shift End Time</span>
-                <Input type="time" className="w-32" />
+        <CardContent className="p-3">
+          <div className="grid grid-cols-6 gap-2 mb-2">
+            {/* Row 1 */}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Calendar className="h-3 w-3 text-blue-500" />
+                Line
+              </Label>
+              <Select value={selectedLine} onValueChange={setSelectedLine}>
+                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Line 1">Line 1</SelectItem>
+                  <SelectItem value="Line 2">Line 2</SelectItem>
+                  <SelectItem value="Line 3">Line 3</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Calendar className="h-3 w-3 text-blue-500" />
+                Date
+              </Label>
+              <div className="relative">
+                <DatePicker
+                  selected={selectedDate}
+                  onChange={(date: Date) => setSelectedDate(date)}
+                  dateFormat="MM/dd/yyyy"
+                  className="w-full h-8 text-sm rounded-md border border-gray-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-7"
+                />
+                <Calendar className="h-3 w-3 text-blue-500 absolute left-2 top-2.5" />
               </div>
             </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Clock3 className="h-3 w-3 text-blue-500" />
+                Start Time
+              </Label>
+              <div className="relative">
+                <Input
+                  type="time"
+                  value={format(shiftStartTime, 'HH:mm')}
+                  onChange={(e) => setShiftStartTime(new Date('1970-01-01T' + e.target.value + ':00'))}
+                  className="w-full h-8 text-sm rounded-md border border-gray-300 pl-7 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
+                <Clock3 className="h-3 w-3 text-blue-500 absolute left-2 top-2.5" />
+              </div>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Clock3 className="h-3 w-3 text-blue-500" />
+                End Time
+              </Label>
+              <div className="relative">
+                <Input
+                  type="time"
+                  value={format(shiftEndTime, 'HH:mm')}
+                  onChange={(e) => setShiftEndTime(new Date('1970-01-01T' + e.target.value + ':00'))}
+                  className="w-full h-8 text-sm rounded-md border border-gray-300 pl-7 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                />
+                <Clock3 className="h-3 w-3 text-blue-500 absolute left-2 top-2.5" />
+              </div>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <FileText className="h-3 w-3 text-blue-500" />
+                Production Order
+              </Label>
+              <Input
+                value={lineDetails.productionOrder}
+                onChange={(e) => setLineDetails({ ...lineDetails, productionOrder: e.target.value })}
+                className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <FileText className="h-3 w-3 text-blue-500" />
+                Production Code
+              </Label>
+              <Input
+                value={lineDetails.productionCode}
+                onChange={(e) => setLineDetails({ ...lineDetails, productionCode: e.target.value })}
+                className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
           </div>
-          <div className="grid grid-cols-4 gap-4">
-            <Input placeholder="Line" value={lineDetails.line} disabled />
-            <Input
-              placeholder="Shift"
-              value={lineDetails.shift}
-              onChange={(e) => setLineDetails({ ...lineDetails, shift: e.target.value })}
-            />
-            <Input
-              placeholder="Production Order"
-              value={lineDetails.productionOrder}
-              onChange={(e) => setLineDetails({ ...lineDetails, productionOrder: e.target.value })}
-            />
-            <Input
-              placeholder="Production Code"
-              value={lineDetails.productionCode}
-              onChange={(e) => setLineDetails({ ...lineDetails, productionCode: e.target.value })}
-            />
-            <Input
-              placeholder="Product Description"
-              value={lineDetails.productDescription}
-              onChange={(e) => setLineDetails({ ...lineDetails, productDescription: e.target.value })}
-            />
-            <Input
-              placeholder="Main Operator"
-              value={lineDetails.mainOperator}
-              onChange={(e) => setLineDetails({ ...lineDetails, mainOperator: e.target.value })}
-            />
-            <Input
-              placeholder="Assistant Operator"
-              value={lineDetails.assistantOperator}
-              onChange={(e) => setLineDetails({ ...lineDetails, assistantOperator: e.target.value })}
-            />
-            <Input
-              placeholder="Shift Incharge"
-              value={lineDetails.shiftIncharge}
-              onChange={(e) => setLineDetails({ ...lineDetails, shiftIncharge: e.target.value })}
-            />
+          
+          {/* Row 2 */}
+          <div className="grid grid-cols-6 gap-2">
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <FileText className="h-3 w-3 text-blue-500" />
+                Product Description
+              </Label>
+              <Input
+                value={lineDetails.productDescription}
+                onChange={(e) => setLineDetails({ ...lineDetails, productDescription: e.target.value })}
+                className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
+              />
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Users className="h-3 w-3 text-blue-500" />
+                Main Operator
+              </Label>
+              <Select
+                value={lineDetails.mainOperator}
+                onValueChange={(value) => setLineDetails({ ...lineDetails, mainOperator: value })}
+              >
+                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {operators.map((operator) => (
+                    <SelectItem key={operator} value={operator}>{operator}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Users className="h-3 w-3 text-blue-500" />
+                Assistant
+              </Label>
+              <Select
+                value={lineDetails.assistantOperator}
+                onValueChange={(value) => setLineDetails({ ...lineDetails, assistantOperator: value })}
+              >
+                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {operators.map((operator) => (
+                    <SelectItem key={operator} value={operator}>{operator}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Users className="h-3 w-3 text-blue-500" />
+                Shift Incharge
+              </Label>
+              <Select
+                value={lineDetails.shiftIncharge}
+                onValueChange={(value) => setLineDetails({ ...lineDetails, shiftIncharge: value })}
+              >
+                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {operators.map((operator) => (
+                    <SelectItem key={operator} value={operator}>{operator}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Settings2 className="h-3 w-3 text-blue-500" />
+                RM1
+              </Label>
+              <Select
+                value={lineDetails.rm1}
+                onValueChange={(value) => setLineDetails({ ...lineDetails, rm1: value })}
+              >
+                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                  <SelectValue placeholder="Select" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rmOptions.map((rm) => (
+                    <SelectItem key={rm} value={rm}>{rm}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-1 flex flex-col">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Settings2 className="h-3 w-3 text-blue-500" />
+                RM2
+              </Label>
+              <div className="flex gap-1 h-8">
+                <Select
+                  value={lineDetails.rm2}
+                  onValueChange={(value) => setLineDetails({ ...lineDetails, rm2: value })}
+                >
+                  <SelectTrigger className="flex-1 h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {rmOptions.map((rm) => (
+                      <SelectItem key={rm} value={rm}>{rm}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Button 
+                  variant="default" 
+                  className="h-8 px-2 bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 text-white text-xs rounded-md shadow-sm transition-all duration-300"
+                  onClick={handleUpdate}
+                >
+                  Update
+                </Button>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
 
       {/* Metrics */}
-      <div className="mb-6 grid grid-cols-9 gap-4">
-        <Card className="bg-green-500 text-white">
-          <CardContent className="p-6">
-            <div className="text-3xl font-bold">{metrics.diligenceScore}%</div>
-            <div className="text-sm">Diligence Score</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-red-500 text-white">
-          <CardContent className="p-6">
-            <div className="text-3xl font-bold">{metrics.delayCount}</div>
-            <div className="text-sm">Delay Count</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-blue-500 text-white">
-          <CardContent className="p-6">
-            <div className="text-3xl font-bold">{metrics.wasteReasonCount}</div>
-            <div className="text-sm">Waste Reason Count</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-green-500 text-white">
-          <CardContent className="p-6">
-            <div className="text-3xl font-bold">{metrics.speedLoss}%</div>
-            <div className="text-sm">Speed Loss</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-green-500 text-white">
-          <CardContent className="p-6">
-            <div className="text-3xl font-bold">{metrics.totalDT} min</div>
-            <div className="text-sm">Total DT</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-green-500 text-white">
-          <CardContent className="p-6">
-            <div className="text-3xl font-bold">{metrics.avgSpeed}</div>
-            <div className="text-sm">Avg Speed</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-blue-500 text-white">
-          <CardContent className="p-6">
-            <div className="text-3xl font-bold">{metrics.totalProduct}</div>
-            <div className="text-sm">Total Product</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-red-500 text-white">
-          <CardContent className="p-6">
-            <div className="text-3xl font-bold">{metrics.wasteProduct}</div>
-            <div className="text-sm">Waste Product</div>
-          </CardContent>
-        </Card>
-        <Card className="bg-green-500 text-white">
-          <CardContent className="p-6">
-            <div className="text-3xl font-bold">{metrics.goodProduct}</div>
-            <div className="text-sm">Good Product</div>
-          </CardContent>
-        </Card>
-      </div>
+      <Card className="metrics-card mb-3 overflow-hidden border-0 shadow-lg sticky top-20">
+        <div className="bg-gradient-to-r from-blue-600 to-purple-700 p-2">
+          <h2 className="text-lg font-bold text-white flex items-center">
+            <BarChart3 className="h-4 w-4 mr-2" />
+            Performance Metrics
+          </h2>
+        </div>
+        <CardContent className="p-3">
+          <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2">
+            <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-md p-2 flex flex-col items-center justify-center border border-green-200 shadow-sm">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-green-500 mb-1">
+                <BarChart3 className="h-3 w-3 text-white" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 text-center">Diligence</div>
+              <div className="text-sm font-bold text-green-600">{metrics.diligenceScore}</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-red-50 to-red-100 rounded-md p-2 flex flex-col items-center justify-center border border-red-200 shadow-sm">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-red-500 mb-1">
+                <AlertTriangle className="h-3 w-3 text-white" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 text-center">Delays</div>
+              <div className="text-sm font-bold text-red-600">{metrics.delayCount}</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-md p-2 flex flex-col items-center justify-center border border-blue-200 shadow-sm">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 mb-1">
+                <Settings2 className="h-3 w-3 text-white" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 text-center">Waste Reasons</div>
+              <div className="text-sm font-bold text-blue-600">{metrics.wasteReasonCount}</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-amber-50 to-amber-100 rounded-md p-2 flex flex-col items-center justify-center border border-amber-200 shadow-sm">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-amber-500 mb-1">
+                <Clock className="h-3 w-3 text-white" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 text-center">Speed Loss</div>
+              <div className="text-sm font-bold text-amber-600">{metrics.speedLoss}</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-md p-2 flex flex-col items-center justify-center border border-purple-200 shadow-sm">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-purple-500 mb-1">
+                <FileText className="h-3 w-3 text-white" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 text-center">Total DT</div>
+              <div className="text-sm font-bold text-purple-600">{metrics.totalDT}</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-cyan-50 to-cyan-100 rounded-md p-2 flex flex-col items-center justify-center border border-cyan-200 shadow-sm">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-cyan-500 mb-1">
+                <Activity className="h-3 w-3 text-white" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 text-center">Avg Speed</div>
+              <div className="text-sm font-bold text-cyan-600">{metrics.avgSpeed}</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100 rounded-md p-2 flex flex-col items-center justify-center border border-indigo-200 shadow-sm">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-indigo-500 mb-1">
+                <Users className="h-3 w-3 text-white" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 text-center">Total Product</div>
+              <div className="text-sm font-bold text-indigo-600">{metrics.totalProduct}</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-rose-50 to-rose-100 rounded-md p-2 flex flex-col items-center justify-center border border-rose-200 shadow-sm">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-rose-500 mb-1">
+                <AlertTriangle className="h-3 w-3 text-white" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 text-center">Waste Product</div>
+              <div className="text-sm font-bold text-rose-600">{metrics.wasteProduct}</div>
+            </div>
+            
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100 rounded-md p-2 flex flex-col items-center justify-center border border-emerald-200 shadow-sm">
+              <div className="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 mb-1">
+                <CheckCircle2 className="h-3 w-3 text-white" />
+              </div>
+              <div className="text-xs font-medium text-gray-600 text-center">Good Product</div>
+              <div className="text-sm font-bold text-emerald-600">{metrics.goodProduct}</div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Delay Entries */}
-      <Card>
-        <CardContent className="p-6">
-          <div className="mb-4 flex items-center justify-between">
-            <h2 className="text-xl font-semibold">Delay Entries</h2>
-            <Button
-              variant="default"
-              className="bg-green-500 hover:bg-green-600"
-              onClick={() => {
-                setDelayEntries([
-                  {
-                    startTime: "",
-                    endTime: "",
-                    scheduleTime: "",
-                    shift: "",
-                    tpc: 0,
-                    machineWaste: 0,
-                    finalWaste: 0,
-                    gpc: 0,
-                    wasteReason: "",
-                    downtimes: [],
-                    isSaved: false
-                  },
-                  ...delayEntries
-                ]);
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" /> Add New Delay Entry
-            </Button>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Start Time</TableHead>
-                  <TableHead>End Time</TableHead>
-                  <TableHead>Schedule Time</TableHead>
-                  <TableHead>Shift</TableHead>
-                  <TableHead>TPC</TableHead>
-                  <TableHead>Machine Waste</TableHead>
-                  <TableHead>Final Waste</TableHead>
-                  <TableHead>GPC</TableHead>
-                  <TableHead>Waste Reason</TableHead>
-                  <TableHead>Downtimes</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {delayEntries.map((entry, index) => (
-                  <TableRow key={index} className="h-16">
-                    <TableCell className={tableStyles.cell}>
-                      <Input
-                        type="time"
-                        value={entry.startTime}
-                        onChange={(e) => handleEntryChange(index, 'startTime', e.target.value)}
-                        className={tableStyles.input}
-                        disabled={entry.isSaved && editMode !== index}
-                      />
-                    </TableCell>
-                    <TableCell className={tableStyles.cell}>
-                      <Input
-                        type="time"
-                        value={entry.endTime}
-                        onChange={(e) => handleEntryChange(index, 'endTime', e.target.value)}
-                        className={tableStyles.input}
-                        disabled={entry.isSaved && editMode !== index}
-                      />
-                    </TableCell>
-                    <TableCell className={tableStyles.cell}>
-                      <Input
-                        type="time"
-                        value={entry.scheduleTime}
-                        onChange={(e) => handleEntryChange(index, 'scheduleTime', e.target.value)}
-                        className={tableStyles.input}
-                        disabled={entry.isSaved && editMode !== index}
-                      />
-                    </TableCell>
-                    <TableCell className={tableStyles.cell}>
-                      <Select
-                        value={entry.shift}
-                        onValueChange={(value) => handleEntryChange(index, 'shift', value)}
-                        className={tableStyles.select}
-                        disabled={entry.isSaved && editMode !== index}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select shift" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="A">A</SelectItem>
-                          <SelectItem value="B">B</SelectItem>
-                          <SelectItem value="C">C</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className={tableStyles.cell}>
-                      <Input
-                        type="number"
-                        value={entry.tpc?.toString() || ''}
-                        onChange={(e) => handleEntryChange(index, 'tpc', Number(e.target.value))}
-                        className={tableStyles.input}
-                        placeholder="Enter TPC"
-                        disabled={entry.isSaved && editMode !== index}
-                      />
-                    </TableCell>
-                    <TableCell className={tableStyles.cell}>
-                      <Input
-                        type="number"
-                        value={entry.machineWaste?.toString() || ''}
-                        onChange={(e) => handleEntryChange(index, 'machineWaste', Number(e.target.value))}
-                        className={tableStyles.input}
-                        placeholder="Enter waste"
-                        disabled={entry.isSaved && editMode !== index}
-                      />
-                    </TableCell>
-                    <TableCell className={tableStyles.cell}>
-                      <Input
-                        type="number"
-                        value={entry.finalWaste?.toString() || ''}
-                        onChange={(e) => handleEntryChange(index, 'finalWaste', Number(e.target.value))}
-                        className={tableStyles.input}
-                        placeholder="Enter waste"
-                        disabled={entry.isSaved && editMode !== index}
-                      />
-                    </TableCell>
-                    <TableCell className={tableStyles.cell}>
-                      <Input
-                        type="number"
-                        value={entry.gpc?.toString() || ''}
-                        onChange={(e) => handleEntryChange(index, 'gpc', Number(e.target.value))}
-                        className={tableStyles.input}
-                        placeholder="Enter GPC"
-                        disabled={entry.isSaved && editMode !== index}
-                      />
-                    </TableCell>
-                    <TableCell className={tableStyles.cell}>
-                      <Select
-                        value={entry.wasteReason}
-                        onValueChange={(value) => handleEntryChange(index, 'wasteReason', value)}
-                        className={tableStyles.select}
-                        disabled={entry.isSaved && editMode !== index}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select reason" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {machineWasteReasons.map((reason) => (
-                            <SelectItem key={reason} value={reason}>{reason}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </TableCell>
-                    <TableCell className={tableStyles.cell}>
-                      <div className="flex flex-col gap-1">
-                        {entry.downtimes.map((dt, dtIndex) => (
-                          <div key={dtIndex} className="text-sm flex items-center gap-2 p-1 hover:bg-gray-100 rounded">
-                            <button 
-                              onClick={() => editDowntime(index, dtIndex)}
-                              className="flex-1 text-left"
-                            >
-                              {dt.dtStart}-{dt.dtEnd} ({dt.typeOfDT})
-                            </button>
-                            <button
-                              onClick={() => deleteDowntime(index, dtIndex)}
-                              className="text-red-500 hover:text-red-700"
-                            >
-                              ×
-                            </button>
-                          </div>
+      <Card className="mb-3 overflow-hidden border-0 shadow-lg sticky top-20">
+        <div className="bg-gradient-to-r from-indigo-600 to-purple-700 p-3 flex justify-between items-center">
+          <h2 className="text-lg font-bold text-white flex items-center">
+            <Clock className="h-5 w-5 mr-2" />
+            Delay Entries
+          </h2>
+          <Button
+            variant="default"
+            size="sm"
+            className="bg-emerald-500 hover:bg-emerald-600 text-white text-xs h-8 px-3 rounded-md shadow-sm transition-all duration-200 flex items-center"
+            onClick={() => {
+              setDelayEntries([
+                {
+                  startTime: "",
+                  endTime: "",
+                  scheduleTime: "",
+                  shift: "",
+                  tpc: 0,
+                  machineWaste: 0,
+                  finalWaste: 0,
+                  gpc: 0,
+                  wasteReason: "",
+                  downtimes: [],
+                  isSaved: false
+                },
+                ...delayEntries
+              ]);
+            }}
+          >
+            <Plus className="mr-1 h-4 w-4" /> Add Entry
+          </Button>
+        </div>
+        <div className="relative max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 bg-white sticky top-75">
+          <table className="w-full border-collapse">
+            <thead className="sticky top-0 z-20 bg-gray-100 shadow-sm">
+              <tr>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Start</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">End</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Schedule</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Shift</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">TPC</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">M.Waste</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">F.Waste</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">GPC</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Reason</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Downtimes</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {delayEntries.map((entry, index) => (
+                <tr key={index} className={`h-12 transition-colors ${index % 2 === 0 ? 'bg-white' : 'bg-gray-50'} hover:bg-blue-50`}>
+                  <td className="p-1">
+                    <Input
+                      type="time"
+                      value={entry.startTime}
+                      onChange={(e) => handleEntryChange(index, 'startTime', e.target.value)}
+                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                      disabled={entry.isSaved && editMode !== index}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <Input
+                      type="time"
+                      value={entry.endTime}
+                      onChange={(e) => handleEntryChange(index, 'endTime', e.target.value)}
+                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                      disabled={entry.isSaved && editMode !== index}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <Input
+                      type="time"
+                      value={entry.scheduleTime}
+                      onChange={(e) => handleEntryChange(index, 'scheduleTime', e.target.value)}
+                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                      disabled={entry.isSaved && editMode !== index}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <Select
+                      value={entry.shift}
+                      onValueChange={(value) => handleEntryChange(index, 'shift', value)}
+                      disabled={entry.isSaved && editMode !== index}
+                    >
+                      <SelectTrigger className="h-8 text-xs px-2 min-w-[70px] rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <SelectValue placeholder="Shift" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {shifts.map((shift) => (
+                          <SelectItem key={shift} value={shift} className="text-xs">{shift}</SelectItem>
                         ))}
-                        <div className="flex gap-2">
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="p-1">
+                    <Input
+                      type="number"
+                      value={entry.tpc?.toString() || ''}
+                      onChange={(e) => handleEntryChange(index, 'tpc', Number(e.target.value))}
+                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                      placeholder="TPC"
+                      disabled={entry.isSaved && editMode !== index}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <Input
+                      type="number"
+                      value={entry.machineWaste?.toString() || ''}
+                      onChange={(e) => handleEntryChange(index, 'machineWaste', Number(e.target.value))}
+                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                      placeholder="Waste"
+                      disabled={entry.isSaved && editMode !== index}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <Input
+                      type="number"
+                      value={entry.finalWaste?.toString() || ''}
+                      onChange={(e) => handleEntryChange(index, 'finalWaste', Number(e.target.value))}
+                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                      placeholder="Waste"
+                      disabled={entry.isSaved && editMode !== index}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <Input
+                      type="number"
+                      value={entry.gpc?.toString() || ''}
+                      onChange={(e) => handleEntryChange(index, 'gpc', Number(e.target.value))}
+                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                      placeholder="GPC"
+                      disabled={entry.isSaved && editMode !== index}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <Select
+                      value={entry.wasteReason}
+                      onValueChange={(value) => handleEntryChange(index, 'wasteReason', value)}
+                      disabled={entry.isSaved && editMode !== index}
+                    >
+                      <SelectTrigger className="h-8 text-xs px-2 min-w-[80px] rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                        <SelectValue placeholder="Reason" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {machineWasteReasons.map((reason) => (
+                          <SelectItem key={reason} value={reason} className="text-xs">{reason}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="p-1">
+                    <div className="flex flex-col gap-1">
+                      {entry.downtimes.length > 0 ? (
+                        <div className="text-xs flex items-center gap-1 bg-indigo-50 p-1.5 rounded-md border border-indigo-100">
+                          <span className="font-medium text-indigo-600">{entry.downtimes.length}</span>
+                          <span className="text-gray-500">items</span>
                           <Button
-                            variant="outline"
+                            variant="ghost"
                             size="sm"
-                            onClick={() => openDowntimeDialog(index)}
-                            disabled={entry.isSaved && editMode !== index}
+                            onClick={() => openDowntimeDetails(index)}
+                            className="ml-auto h-6 w-6 p-0 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100 rounded-full"
                           >
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add Downtime
+                            <Eye className="h-3.5 w-3.5" />
                           </Button>
-                          {entry.downtimes.length > 0 && (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openDowntimeDetails(index)}
-                            >
-                              View Details
-                            </Button>
-                          )}
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell className="flex gap-2 min-w-[200px]">
+                      ) : (
+                        <div className="text-xs text-gray-400 italic p-1">No downtimes</div>
+                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => openDowntimeDialog(index)}
+                        disabled={entry.isSaved && editMode !== index}
+                        className="h-7 text-xs px-2 py-0 border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-all duration-200"
+                      >
+                        <Plus className="h-3 w-3 mr-1" />
+                        Add
+                      </Button>
+                    </div>
+                  </td>
+                  <td className="p-1">
+                    <div className="flex gap-1">
                       {!entry.isSaved ? (
                         // New entry - show Save and Delete
                         <>
                           <Button
                             onClick={() => handleSaveEntry(index)}
-                            className={`${isEntryValid(entry) ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-400 cursor-not-allowed'}`}
+                            className={`h-7 text-xs px-2 rounded-md transition-all duration-200 flex items-center justify-center ${isEntryValid(entry) ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
                             disabled={!isEntryValid(entry)}
-                            title={!isEntryValid(entry) ? "Please fill all required fields" : ""}
+                            title={!isEntryValid(entry) ? "Fill required fields" : ""}
                           >
-                            Save
+                            <Save className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             onClick={() => handleDeleteEntry(index)}
-                            className="bg-red-500 hover:bg-red-600"
+                            className="h-7 text-xs px-2 rounded-md bg-red-500 hover:bg-red-600 text-white transition-all duration-200 flex items-center justify-center"
                           >
-                            Delete
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </>
                       ) : editMode === index ? (
@@ -1899,17 +987,17 @@ export default function DowntimeTracker() {
                         <>
                           <Button
                             onClick={() => handleSaveEntry(index)}
-                            className={`${isEntryValid(entry) ? 'bg-green-500 hover:bg-green-600' : 'bg-gray-400 cursor-not-allowed'}`}
+                            className={`h-7 text-xs px-2 rounded-md transition-all duration-200 flex items-center justify-center ${isEntryValid(entry) ? 'bg-emerald-500 hover:bg-emerald-600 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}`}
                             disabled={!isEntryValid(entry)}
-                            title={!isEntryValid(entry) ? "Please fill all required fields" : ""}
+                            title={!isEntryValid(entry) ? "Fill required fields" : ""}
                           >
-                            Save
+                            <Save className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             onClick={() => handleDeleteEntry(index)}
-                            className="bg-red-500 hover:bg-red-600"
+                            className="h-7 text-xs px-2 rounded-md bg-red-500 hover:bg-red-600 text-white transition-all duration-200 flex items-center justify-center"
                           >
-                            Delete
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </>
                       ) : (
@@ -1917,345 +1005,335 @@ export default function DowntimeTracker() {
                         <>
                           <Button
                             onClick={() => handleEditEntry(index)}
-                            className="bg-blue-500 hover:bg-blue-600"
+                            className="h-7 text-xs px-2 rounded-md bg-blue-500 hover:bg-blue-600 text-white transition-all duration-200 flex items-center justify-center"
                           >
-                            Edit
+                            <Pencil className="h-3.5 w-3.5" />
                           </Button>
                           <Button
                             onClick={() => handleDeleteEntry(index)}
-                            className="bg-red-500 hover:bg-red-600"
+                            className="h-7 text-xs px-2 rounded-md bg-red-500 hover:bg-red-600 text-white transition-all duration-200 flex items-center justify-center"
                           >
-                            Delete
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </>
                       )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </Card>
 
-      <Dialog 
-        open={showDowntimeDialog} 
-        onOpenChange={(open) => {
-          if (!open && !isSubmitting) {
-            closeDowntimeDialog()
-          }
-        }}
-      >
-        <DialogContent className="max-w-3xl">
+      {/* Downtime Dialog */}
+      <Dialog open={showDowntimeDialog} onOpenChange={setShowDowntimeDialog}>
+        <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>{isEditingDowntime ? 'Edit Downtime Entry' : 'Add Downtime Entry'}</DialogTitle>
+            <DialogTitle className="text-lg font-semibold">
+              {isEditingDowntime ? "Edit Downtime Entry" : "Add Downtime Entry"}
+            </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit}>
+          <form onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label>Start Time</label>
+                <Label htmlFor="dtStart" className="text-sm font-medium">
+                  Start Time <span className="text-red-500">*</span>
+                </Label>
                 <Input
+                  id="dtStart"
                   type="time"
                   value={newDowntime.dtStart}
                   onChange={(e) => handleDowntimeChange('dtStart', e.target.value)}
+                  className="h-9"
                   required
-                  disabled={isSubmitting}
                 />
               </div>
               <div className="space-y-2">
-                <label>End Time</label>
+                <Label htmlFor="dtEnd" className="text-sm font-medium">
+                  End Time <span className="text-red-500">*</span>
+                </Label>
                 <Input
+                  id="dtEnd"
                   type="time"
                   value={newDowntime.dtEnd}
                   onChange={(e) => handleDowntimeChange('dtEnd', e.target.value)}
+                  className="h-9"
                   required
-                  disabled={isSubmitting}
-                />
-              </div>
-              <div className="space-y-2">
-                <label>Duration (minutes)</label>
-                <Input
-                  type="number"
-                  value={newDowntime.dtInMin}
-                  readOnly
-                  disabled
-                />
-              </div>
-              <div className="space-y-2">
-                <label>Type of DT</label>
-                <Select
-                  value={newDowntime.typeOfDT}
-                  onValueChange={(value) => handleDowntimeChange('typeOfDT', value)}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dtTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label>Applicator</label>
-                <Select
-                  value={newDowntime.applicator}
-                  onValueChange={(value) => handleDowntimeChange('applicator', value)}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select applicator" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {newDowntime.typeOfDT && applicatorsByDtType[newDowntime.typeOfDT]?.map((applicator) => (
-                      <SelectItem key={applicator} value={applicator}>
-                        {applicator}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <label>Delay Reason</label>
-                <Select
-                  value={newDowntime.delayReason}
-                  onValueChange={(value) => handleDowntimeChange('delayReason', value)}
-                  disabled={isSubmitting}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select reason" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {newDowntime.typeOfDT && delayReasonsByDtType[newDowntime.typeOfDT]?.map((reason) => (
-                      <SelectItem key={reason} value={reason}>
-                        {reason}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="col-span-2 space-y-2">
-                <label>Remarks</label>
-                <Input
-                  value={newDowntime.remarks}
-                  onChange={(e) => handleDowntimeChange('remarks', e.target.value)}
-                  placeholder="Enter remarks"
-                  disabled={isSubmitting}
                 />
               </div>
             </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="dtInMin" className="text-sm font-medium">
+                Duration (minutes)
+              </Label>
+              <Input
+                id="dtInMin"
+                type="number"
+                value={newDowntime.dtInMin}
+                onChange={(e) => handleDowntimeChange('dtInMin', parseInt(e.target.value))}
+                className="h-9"
+                readOnly
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="typeOfDT" className="text-sm font-medium">
+                Type of Downtime <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={newDowntime.typeOfDT}
+                onValueChange={(value) => {
+                  handleDowntimeChange('typeOfDT', value);
+                  handleDowntimeChange('applicator', '');
+                  handleDowntimeChange('delayReason', '');
+                }}
+                required
+              >
+                <SelectTrigger id="typeOfDT" className="h-9">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {dtTypes.map((type) => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="applicator" className="text-sm font-medium">
+                Applicator <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={newDowntime.applicator}
+                onValueChange={(value) => handleDowntimeChange('applicator', value)}
+                disabled={!newDowntime.typeOfDT}
+                required
+              >
+                <SelectTrigger id="applicator" className="h-9">
+                  <SelectValue placeholder="Select applicator" />
+                </SelectTrigger>
+                <SelectContent>
+                  {newDowntime.typeOfDT && applicatorsByDtType[newDowntime.typeOfDT]?.map((applicator) => (
+                    <SelectItem key={applicator} value={applicator}>{applicator}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="delayReason" className="text-sm font-medium">
+                Delay Reason <span className="text-red-500">*</span>
+              </Label>
+              <Select
+                value={newDowntime.delayReason}
+                onValueChange={(value) => handleDowntimeChange('delayReason', value)}
+                disabled={!newDowntime.typeOfDT}
+                required
+              >
+                <SelectTrigger id="delayReason" className="h-9">
+                  <SelectValue placeholder="Select reason" />
+                </SelectTrigger>
+                <SelectContent>
+                  {newDowntime.typeOfDT && delayReasonsByDtType[newDowntime.typeOfDT]?.map((reason) => (
+                    <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="remarks" className="text-sm font-medium">
+                Remarks
+              </Label>
+              <Input
+                id="remarks"
+                value={newDowntime.remarks}
+                onChange={(e) => handleDowntimeChange('remarks', e.target.value)}
+                className="h-9"
+              />
+            </div>
+            
             <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={closeDowntimeDialog}
+                className="h-9"
+              >
+                Cancel
+              </Button>
               <Button 
                 type="submit"
+                className="h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
                 disabled={isSubmitting}
               >
-                {isEditingDowntime ? 'Update' : 'Add'} Downtime
+                {isSubmitting ? 'Saving...' : isEditingDowntime ? 'Update' : 'Add'}
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
 
+      {/* Downtime Details Dialog */}
       <Dialog open={showDowntimeDetailsDialog} onOpenChange={setShowDowntimeDetailsDialog}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Downtime Details for Shift</DialogTitle>
-          </DialogHeader>
-          {currentEntryIndex !== null && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded">
-                <div>
-                  <p className="font-semibold">Shift Time:</p>
-                  <p>{delayEntries[currentEntryIndex].startTime} - {delayEntries[currentEntryIndex].endTime}</p>
-                </div>
-                <div>
-                  <p className="font-semibold">Total Downtimes:</p>
-                  <p>{delayEntries[currentEntryIndex].downtimes.length}</p>
-                </div>
-              </div>
-              
-              <div className="space-y-2">
-                <h3 className="font-semibold text-lg">Downtime Entries</h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Start Time</TableHead>
-                      <TableHead>End Time</TableHead>
-                      <TableHead>Duration (min)</TableHead>
-                      <TableHead>Type</TableHead>
-                      <TableHead>Applicator</TableHead>
-                      <TableHead>Reason</TableHead>
-                      <TableHead>Remarks</TableHead>
-                      <TableHead>Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {delayEntries[currentEntryIndex].downtimes.map((dt, dtIndex) => (
-                      <TableRow key={dtIndex}>
-                        <TableCell>{dt.dtStart}</TableCell>
-                        <TableCell>{dt.dtEnd}</TableCell>
-                        <TableCell>{dt.dtInMin}</TableCell>
-                        <TableCell>{dt.typeOfDT}</TableCell>
-                        <TableCell>{dt.applicator}</TableCell>
-                        <TableCell>{dt.delayReason}</TableCell>
-                        <TableCell>{dt.remarks}</TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                editDowntime(currentEntryIndex, dtIndex)
-                                setShowDowntimeDetailsDialog(false)
-                              }}
-                            >
-                              Edit
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="text-red-500 hover:text-red-700"
-                              onClick={() => deleteDowntime(currentEntryIndex, dtIndex)}
-                            >
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+        <DialogContent className="w-full max-w-[900px] p-0 overflow-hidden">
+          <div className="flex justify-between items-center p-6 border-b border-gray-200">
+            <DialogTitle className="text-xl font-bold">
+              Downtime Details for Shift
+            </DialogTitle>
+          </div>
 
-                <div className="mt-4">
-                  <h3 className="font-semibold text-lg mb-2">Summary</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <p className="font-semibold">Total Downtime Duration:</p>
-                      <p>{delayEntries[currentEntryIndex].downtimes.reduce((sum, dt) => sum + dt.dtInMin, 0)} minutes</p>
-                    </div>
-                    <div>
-                      <p className="font-semibold">Most Common Type:</p>
-                      <p>{
-                        Object.entries(
-                          delayEntries[currentEntryIndex].downtimes.reduce((acc, dt) => {
-                            acc[dt.typeOfDT] = (acc[dt.typeOfDT] || 0) + 1
-                            return acc
-                          }, {} as Record<string, number>)
-                        ).sort((a, b) => b[1] - a[1])[0]?.[0] || 'N/A'
-                      }</p>
-                    </div>
+          {currentEntryIndex !== null && (
+            <>
+              {/* Shift Summary */}
+              <div className="bg-gray-50 p-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Shift Time:</h3>
+                    <p className="text-base font-semibold">
+                      {delayEntries[currentEntryIndex]?.startTime || "--:--"} - {delayEntries[currentEntryIndex]?.endTime || "--:--"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Total Downtimes:</h3>
+                    <p className="text-base font-semibold">
+                      {delayEntries[currentEntryIndex]?.downtimes?.length || 0}
+                    </p>
                   </div>
                 </div>
               </div>
-            </div>
+
+              {/* Downtime Entries */}
+              <div className="p-6">
+                <h3 className="text-lg font-bold mb-4">Downtime Entries</h3>
+                
+                {delayEntries[currentEntryIndex]?.downtimes?.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Start Time</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">End Time</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Duration (min)</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Type</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Applicator</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Reason</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Remarks</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {delayEntries[currentEntryIndex].downtimes.map((dt, idx) => (
+                          <tr key={idx} className="border-b border-gray-100">
+                            <td className="py-3 px-3">{dt.dtStart}</td>
+                            <td className="py-3 px-3">{dt.dtEnd}</td>
+                            <td className="py-3 px-3">{dt.dtInMin}</td>
+                            <td className="py-3 px-3">{dt.typeOfDT}</td>
+                            <td className="py-3 px-3">{dt.applicator}</td>
+                            <td className="py-3 px-3">{dt.delayReason}</td>
+                            <td className="py-3 px-3">{dt.remarks || "-"}</td>
+                            <td className="py-3 px-3">
+                              <div className="flex gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => editDowntime(currentEntryIndex, idx)}
+                                  className="h-8 text-xs font-medium"
+                                >
+                                  Edit
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => deleteDowntime(currentEntryIndex, idx)}
+                                  className="h-8 text-xs font-medium text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
+                                >
+                                  Delete
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-3">
+                      <Clock className="h-6 w-6 text-gray-400" />
+                    </div>
+                    <p className="text-gray-500 mb-4">No downtime entries found for this delay period.</p>
+                    {currentEntryIndex !== null && !delayEntries[currentEntryIndex].isSaved && (
+                      <Button
+                        onClick={() => {
+                          setShowDowntimeDetailsDialog(false);
+                          openDowntimeDialog(currentEntryIndex);
+                        }}
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
+                      >
+                        <Plus className="h-4 w-4 mr-1" /> Add Downtime Entry
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Summary Section */}
+              {delayEntries[currentEntryIndex]?.downtimes?.length > 0 && (
+                <div className="p-6 border-t border-gray-200 bg-gray-50">
+                  <h3 className="text-lg font-bold mb-4">Summary</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Total Downtime Duration:</h4>
+                      <p className="text-base font-semibold">
+                        {delayEntries[currentEntryIndex].downtimes.reduce((total, dt) => total + (dt.dtInMin || 0), 0)} minutes
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Most Common Type:</h4>
+                      <p className="text-base font-semibold">
+                        {(() => {
+                          const types = delayEntries[currentEntryIndex].downtimes.map(dt => dt.typeOfDT);
+                          const counts = types.reduce((acc, type) => {
+                            acc[type] = (acc[type] || 0) + 1;
+                            return acc;
+                          }, {});
+                          const mostCommon = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+                          return mostCommon ? mostCommon[0] : 'None';
+                        })()}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer */}
+              <div className="flex justify-end p-4 border-t border-gray-200">
+                {!delayEntries[currentEntryIndex].isSaved && (
+                  <Button
+                    onClick={() => {
+                      setShowDowntimeDetailsDialog(false);
+                      openDowntimeDialog(currentEntryIndex);
+                    }}
+                    className="mr-2 bg-indigo-600 hover:bg-indigo-700 text-white"
+                  >
+                    <Plus className="h-4 w-4 mr-1" /> Add Downtime
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDowntimeDetailsDialog(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </>
           )}
         </DialogContent>
       </Dialog>
-
-      {/* Report Dialog */}
-      <Dialog open={showReport} onOpenChange={setShowReport}>
-        <DialogContent className="sm:max-w-[80vw] max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Downtime Report</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
-              <Card>
-                <CardContent className="p-4">
-                  <h3 className="font-semibold mb-2">Line Details</h3>
-                  <div className="space-y-2">
-                    <p>Line: {lineDetails.line}</p>
-                    <p>Shift: {lineDetails.shift}</p>
-                    <p>Production Order: {lineDetails.productionOrder}</p>
-                    <p>Production Code: {lineDetails.productionCode}</p>
-                  </div>
-                </CardContent>
-              </Card>
-              <Card>
-                <CardContent className="p-4">
-                  <h3 className="font-semibold mb-2">Personnel</h3>
-                  <div className="space-y-2">
-                    <p>Main Operator: {lineDetails.mainOperator}</p>
-                    <p>Assistant Operator: {lineDetails.assistantOperator}</p>
-                    <p>Shift Incharge: {lineDetails.shiftIncharge}</p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-2">Performance Metrics</h3>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <p className="font-medium">Diligence Score</p>
-                    <p className="text-2xl">{metrics.diligenceScore}%</p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Total Downtime</p>
-                    <p className="text-2xl">{metrics.totalDT} min</p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Speed Loss</p>
-                    <p className="text-2xl">{metrics.speedLoss}%</p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Total Product</p>
-                    <p className="text-2xl">{metrics.totalProduct}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Good Product</p>
-                    <p className="text-2xl">{metrics.goodProduct}</p>
-                  </div>
-                  <div>
-                    <p className="font-medium">Waste Product</p>
-                    <p className="text-2xl">{metrics.wasteProduct}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-            <Card>
-              <CardContent className="p-4">
-                <h3 className="font-semibold mb-4">Delay Entries Summary</h3>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Type of DT</TableHead>
-                      <TableHead>Total Duration (min)</TableHead>
-                      <TableHead>Count</TableHead>
-                      <TableHead>Waste</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {Object.entries(
-                      delayEntries.reduce((acc, entry) => {
-                        const key = entry.typeOfDT || 'Unspecified'
-                        if (!acc[key]) {
-                          acc[key] = { duration: 0, count: 0, waste: 0 }
-                        }
-                        acc[key].duration += entry.downtimes.reduce((sum, dt) => sum + dt.dtInMin, 0)
-                        acc[key].count += 1
-                        acc[key].waste += entry.machineWaste + entry.finalWaste
-                        return acc
-                      }, {} as Record<string, { duration: number; count: number; waste: number }>)
-                    ).map(([type, data]) => (
-                      <TableRow key={type}>
-                        <TableCell>{type}</TableCell>
-                        <TableCell>{data.duration}</TableCell>
-                        <TableCell>{data.count}</TableCell>
-                        <TableCell>{data.waste}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
-  )
+  );
 }
