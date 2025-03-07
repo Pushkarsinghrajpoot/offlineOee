@@ -155,13 +155,13 @@ const ProductionRateCard = () => {
                 textAnchor="middle" 
                 className="text-base fill-current opacity-60"
               >
-                su/hr
+                PPM
               </text>
             </svg>
           </div>
           <div className="flex items-center justify-center text-base font-medium text-gray-600 dark:text-gray-300">
             <TrendingUp className="w-5 h-5 mr-2 text-blue-500 dark:text-blue-400" />
-            <span>Target: {targetSpeed} su/hr</span>
+            <span>Target: {targetSpeed} PPM</span>
           </div>
         </div>
       </CardContent>
@@ -174,13 +174,167 @@ const ChartExportDialog = dynamic(() => import('@/components/chart-export-dialog
 })
 
 export default function ProductionDashboard() {
+  // Filter states
+  const [selectedPlant, setSelectedPlant] = useState("plant1")
+  const [selectedLine, setSelectedLine] = useState("line1")
+  const [startDate, setStartDate] = useState(new Date())
+  const [startShift, setStartShift] = useState("shift1")
+  const [endDate, setEndDate] = useState(new Date())
+  const [endShift, setEndShift] = useState("shift1")
+
+  // Dummy data for different dates
+  const dummyData = {
+    current: {
+      oee: {
+        oee: 78,
+        availability: 85,
+        performance: 82,
+        quality: 92,
+      },
+      production: [
+        { time: '06:00', actual: 150, target: 200 },
+        { time: '07:00', actual: 180, target: 200 },
+        { time: '08:00', actual: 190, target: 200 },
+        { time: '09:00', actual: 170, target: 200 },
+      ],
+      downtime: [
+        { name: 'Mechanical', value: 35, color: '#FF6B6B' },
+        { name: 'Electrical', value: 25, color: '#4ECDC4' },
+        { name: 'Process', value: 20, color: '#45B7D1' },
+        { name: 'Quality', value: 20, color: '#96CEB4' },
+      ]
+    },
+    twoDaysBack: {
+      oee: {
+        oee: 65,
+        availability: 72,
+        performance: 75,
+        quality: 88,
+      },
+      production: [
+        { time: '06:00', actual: 120, target: 200 },
+        { time: '07:00', actual: 140, target: 200 },
+        { time: '08:00', actual: 160, target: 200 },
+        { time: '09:00', actual: 150, target: 200 },
+      ],
+      downtime: [
+        { name: 'Mechanical', value: 45, color: '#FF6B6B' },
+        { name: 'Electrical', value: 20, color: '#4ECDC4' },
+        { name: 'Process', value: 25, color: '#45B7D1' },
+        { name: 'Quality', value: 10, color: '#96CEB4' },
+      ]
+    }
+  };
+
+  // Dashboard data states
+  const [oeeData, setOeeData] = useState(dummyData.current.oee)
+  const [productionData, setProductionData] = useState(dummyData.current.production)
+  const [downtimeData, setDowntimeData] = useState(dummyData.current.downtime)
+
+  // Function to check if a date is today
+  const isToday = (date: Date) => {
+    const today = new Date()
+    return date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+  }
+
+  // Function to check if a date is 2 days back
+  const isTwoDaysBack = (date: Date) => {
+    const twoDaysBack = new Date()
+    twoDaysBack.setDate(twoDaysBack.getDate() - 2)
+    return date.getDate() === twoDaysBack.getDate() &&
+      date.getMonth() === twoDaysBack.getMonth() &&
+      date.getFullYear() === twoDaysBack.getFullYear()
+  }
+
+  // Function to update dashboard data based on filters
+  const handleApplyFilters = () => {
+    // Determine which data set to use based on the selected date
+    let selectedData;
+    
+    if (isToday(startDate)) {
+      selectedData = dummyData.current;
+      console.log("Showing current day data");
+    } else if (isTwoDaysBack(startDate)) {
+      selectedData = dummyData.twoDaysBack;
+      console.log("Showing data from 2 days ago");
+    } else {
+      // For any other date, show a message and use current data
+      console.log("No data available for selected date. Showing current data.");
+      selectedData = dummyData.current;
+    }
+
+    // Apply slight variations based on plant and line selection
+    const variation = (selectedPlant === "plant1" ? 1.1 : 0.9) * 
+                     (selectedLine === "line1" ? 1.05 : 0.95);
+
+    // Update all dashboard components with the selected data
+    setOeeData({
+      oee: Math.min(100, Math.floor(selectedData.oee.oee * variation)),
+      availability: Math.min(100, Math.floor(selectedData.oee.availability * variation)),
+      performance: Math.min(100, Math.floor(selectedData.oee.performance * variation)),
+      quality: Math.min(100, Math.floor(selectedData.oee.quality * variation)),
+    });
+
+    setProductionData(selectedData.production.map(item => ({
+      ...item,
+      actual: Math.floor(item.actual * variation)
+    })));
+
+    setDowntimeData(selectedData.downtime.map(item => ({
+      ...item,
+      value: Math.floor(item.value * variation)
+    })));
+
+    console.log("Filters applied:", {
+      plant: selectedPlant,
+      line: selectedLine,
+      startDate: startDate.toLocaleDateString(),
+      startShift,
+      endDate: endDate.toLocaleDateString(),
+      endShift
+    });
+  };
+
+  // Function to update dashboard data based on filters
+  const handleApplyFiltersOriginal = () => {
+    // In a real app, this would be an API call
+    // For demo, we'll generate some random variations
+    
+    // Calculate a random factor based on selected filters
+    const seed = selectedPlant.charCodeAt(0) + selectedLine.charCodeAt(0) + 
+                startDate.getDate() + endDate.getDate() + 
+                startShift.charCodeAt(0) + endShift.charCodeAt(0);
+    const randomFactor = (seed % 20) / 100 + 0.9; // Between 0.9 and 1.1
+    
+    // Update OEE metrics
+    setOeeData({
+      oee: Math.min(100, Math.floor(78 * randomFactor)),
+      availability: Math.min(100, Math.floor(85 * randomFactor)),
+      performance: Math.min(100, Math.floor(82 * randomFactor)),
+      quality: Math.min(100, Math.floor(92 * randomFactor)),
+    })
+    
+    // Update production data
+    setProductionData(prev => prev.map(item => ({
+      ...item,
+      actual: Math.floor(item.actual * randomFactor),
+      target: item.target
+    })))
+    
+    // Update downtime data
+    setDowntimeData(prev => prev.map(item => ({
+      ...item,
+      value: Math.floor(item.value * randomFactor)
+    })))
+  }
+
   const [selectedChart, setSelectedChart] = useState<string | null>(null);
-  const [startDate, setStartDate] = useState<Date | null>(new Date());
-  const [endDate, setEndDate] = useState<Date | null>(new Date());
-  const [startShift, setStartShift] = useState<string>("shift1");
-  const [endShift, setEndShift] = useState<string>("shift1");
-  const [selectedLine, setSelectedLine] = useState<string>("line1");
-  const [selectedPlant, setSelectedPlant] = useState<string>("plant1");
+  const [startShifts, setStartShifts] = useState<string>("shift1");
+  const [endShifts, setEndShifts] = useState<string>("shift1");
+  const [selectedLines, setSelectedLines] = useState<string>("line1");
+  const [selectedPlants, setSelectedPlants] = useState<string>("plant1");
 
   // Sample data
   const kpiData = {
@@ -190,13 +344,13 @@ export default function ProductionDashboard() {
     quality: 93,
   }
 
-  const productionData = {
+  const productionDataSample = {
     actualQty: 150000,
     waste: 2500,
     targetQty: 270000,
   }
 
-  const downtimeData = [
+  const downtimeDataSample = [
     { name: "Downtime", value: 25, color: "#FF69B4" },
     { name: "Speed Loss", value: 15, color: "#6C5CE7" },
     { name: "Grade Change", value: 20, color: "#A29BFE" },
@@ -205,7 +359,7 @@ export default function ProductionDashboard() {
     { name: "Maintenance", value: 20, color: "#74B9FF" },
   ]
 
-  const totalDowntime = downtimeData.reduce((total, item) => total + item.value, 0);
+  const totalDowntime = downtimeDataSample.reduce((total, item) => total + item.value, 0);
 
   const timeAccountData = [
     { name: "Speed Loss", minutes: 15 },
@@ -247,7 +401,7 @@ export default function ProductionDashboard() {
     
     if (selectedChart === "Downtime") {
       title = "Downtime Contribution";
-      data = downtimeData.map(item => ({
+      data = downtimeDataSample.map(item => ({
         'Downtime Category': item.name,
         'Percentage (%)': item.value
       }));
@@ -295,7 +449,7 @@ export default function ProductionDashboard() {
         <div className="grid grid-cols-7 gap-2 items-end text-sm">
           <div className="">
             <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">Plant</label>
-            <Select value={selectedPlant} onValueChange={setSelectedPlant}>
+            <Select value={selectedPlants} onValueChange={setSelectedPlants}>
               <SelectTrigger className="h-7 min-h-7 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded">
                 <SelectValue placeholder="Select Plant" />
               </SelectTrigger>
@@ -309,7 +463,7 @@ export default function ProductionDashboard() {
           
           <div className="space-y-0.5">
             <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">Line</label>
-            <Select value={selectedLine} onValueChange={setSelectedLine}>
+            <Select value={selectedLines} onValueChange={setSelectedLines}>
               <SelectTrigger className="h-7 min-h-7 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded">
                 <SelectValue placeholder="Select Line" />
               </SelectTrigger>
@@ -340,7 +494,7 @@ export default function ProductionDashboard() {
           
           <div className="space-y-0.5">
             <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">Start Shift</label>
-            <Select value={startShift} onValueChange={setStartShift}>
+            <Select value={startShifts} onValueChange={setStartShifts}>
               <SelectTrigger className="h-7 min-h-7 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded">
                 <SelectValue placeholder="Select Shift" />
               </SelectTrigger>
@@ -371,7 +525,7 @@ export default function ProductionDashboard() {
           
           <div className="space-y-0.5">
             <label className="font-medium text-gray-700 dark:text-gray-300 text-xs">End Shift</label>
-            <Select value={endShift} onValueChange={setEndShift}>
+            <Select value={endShifts} onValueChange={setEndShifts}>
               <SelectTrigger className="h-7 min-h-7 text-sm bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 rounded">
                 <SelectValue placeholder="Select Shift" />
               </SelectTrigger>
@@ -384,7 +538,10 @@ export default function ProductionDashboard() {
           </div>
           
           <div className="flex items-end justify-end">
-            <button className="px-3 py-0.5 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition-colors flex items-center text-sm dark:bg-blue-700 dark:hover:bg-blue-800 dark:shadow-blue-900/20">
+            <button 
+              onClick={handleApplyFilters}
+              className="px-3 py-0.5 h-7 bg-blue-600 hover:bg-blue-700 text-white rounded shadow-sm transition-colors flex items-center text-sm dark:bg-blue-700 dark:hover:bg-blue-800 dark:shadow-blue-900/20"
+            >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
               </svg>
@@ -404,15 +561,15 @@ export default function ProductionDashboard() {
               <div className="flex space-x-4">
                 {/* Left half - OEE */}
                 <div className="flex-1 flex justify-center items-center">
-                  <RadialProgressBar value={kpiData.oee} color="blue-500" label="OEE" size={140} />
+                  <RadialProgressBar value={oeeData.oee} color="blue-500" label="OEE" size={140} />
                 </div>
 
                 {/* Right half - AVA, EFF, QUA, and Production Data */}
                 <div className="flex-1 flex flex-col">
                   <div className="grid grid-cols-3 gap-3 mb-4">
-                    <RadialProgressBar value={kpiData.availability} color="green-500" label="AVA" size={70} />
-                    <RadialProgressBar value={kpiData.efficiency} color="yellow-500" label="EFF" size={70} />
-                    <RadialProgressBar value={kpiData.quality} color="red-500" label="QUA" size={70} />
+                    <RadialProgressBar value={oeeData.availability} color="green-500" label="AVA" size={70} />
+                    <RadialProgressBar value={oeeData.performance} color="yellow-500" label="PER" size={70} />
+                    <RadialProgressBar value={oeeData.quality} color="red-500" label="QUA" size={70} />
                   </div>
 
                   {/* Production Data Bar */}
@@ -421,20 +578,20 @@ export default function ProductionDashboard() {
                     <div className="relative h-6 bg-gray-200 rounded">
                       <div
                         className="absolute h-full bg-green-500 rounded"
-                        style={{ width: `${(productionData.actualQty / productionData.targetQty) * 100}%` }}
+                        style={{ width: `${(productionDataSample.actualQty / productionDataSample.targetQty) * 100}%` }}
                       />
                       <div
                         className="absolute h-full bg-red-500 rounded"
                         style={{
-                          width: `${(productionData.waste / productionData.targetQty) * 100}%`,
-                          left: `${(productionData.actualQty / productionData.targetQty) * 100}%`,
+                          width: `${(productionDataSample.waste / productionDataSample.targetQty) * 100}%`,
+                          left: `${(productionDataSample.actualQty / productionDataSample.targetQty) * 100}%`,
                         }}
                       />
                     </div>
                     <div className="flex justify-between mt-2 text-base">
-                      <span>Actual: {productionData.actualQty}</span>
-                      <span>Waste: {productionData.waste}</span>
-                      <span>Target: {productionData.targetQty}</span>
+                      <span>Actual: {productionDataSample.actualQty}</span>
+                      <span>Waste: {productionDataSample.waste}</span>
+                      <span>Target: {productionDataSample.targetQty}</span>
                     </div>
                   </div>
                 </div>
@@ -463,7 +620,7 @@ export default function ProductionDashboard() {
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
                     <Pie
-                      data={downtimeData}
+                      data={downtimeDataSample}
                       cx="50%"
                       cy="50%"
                       outerRadius={60}
@@ -471,7 +628,7 @@ export default function ProductionDashboard() {
                       paddingAngle={2}
                       dataKey="value"
                     >
-                      {downtimeData.map((entry, index) => (
+                      {downtimeDataSample.map((entry, index) => (
                         <Cell 
                           key={index} 
                           fill={entry.color}
@@ -490,7 +647,7 @@ export default function ProductionDashboard() {
                         boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)'
                       }}
                       formatter={(value: number, name: string, props: any) => {
-                        const entry = downtimeData.find(item => item.value === value);
+                        const entry = downtimeDataSample.find(item => item.value === value);
                         return [`${value}%`, entry ? entry.name : name];
                       }}
                       wrapperClassName="!bg-white dark:!bg-gray-800 dark:!text-gray-100 dark:!border dark:!border-gray-700 dark:!shadow-lg"
@@ -499,7 +656,7 @@ export default function ProductionDashboard() {
                 </ResponsiveContainer>
               </div>
               <div className="flex flex-col justify-center">
-                {downtimeData.map((item, index) => (
+                {downtimeDataSample.map((item, index) => (
                   <div key={index} className="flex items-center gap-2 mb-2">
                     <div className="w-4 h-4 rounded-full" style={{ backgroundColor: item.color }} />
                     <span className="text-sm text-gray-600 dark:text-gray-300 truncate">{item.name}</span>
@@ -701,7 +858,7 @@ export default function ProductionDashboard() {
                 <ResponsiveContainer width="100%" height={350}>
                   <PieChart>
                     <Pie
-                      data={downtimeData}
+                      data={downtimeDataSample}
                       cx="50%"
                       cy="50%"
                       outerRadius={120}
@@ -709,7 +866,7 @@ export default function ProductionDashboard() {
                       paddingAngle={2}
                       dataKey="value"
                     >
-                      {downtimeData.map((entry, index) => (
+                      {downtimeDataSample.map((entry, index) => (
                         <Cell 
                           key={index} 
                           fill={entry.color}
@@ -735,7 +892,7 @@ export default function ProductionDashboard() {
                         boxShadow: '0 2px 5px rgba(0, 0, 0, 0.2)'
                       }}
                       formatter={(value: number, name: string, props: any) => {
-                        const entry = downtimeData.find(item => item.value === value);
+                        const entry = downtimeDataSample.find(item => item.value === value);
                         return [`${value}%`, entry ? entry.name : name];
                       }}
                       wrapperClassName="!bg-white dark:!bg-gray-800 dark:!text-gray-100 dark:!border dark:!border-gray-700 dark:!shadow-lg"

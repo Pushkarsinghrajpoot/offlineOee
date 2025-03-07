@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
 import {
   Bar,
   BarChart,
@@ -18,7 +19,6 @@ import {
   Legend,
 } from "@/components/ui/chart"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
 import { ComposedChart } from "recharts"
 import { Activity, AlertTriangle, Droplets, Power, TrendingUp, Clock, Target, Shield } from "lucide-react"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
@@ -45,30 +45,99 @@ import {
 import {Gauge} from "lucide-react"
 import dynamic from 'next/dynamic';
 
-const ProductionRateCard = () => {
-  const [currentSpeed, setCurrentSpeed] = useState(0)
+export const ProductionRateCard = ({ 
+  timeframe = "current", 
+  lineId = "Overall",
+  staticSpeed = null,
+  staticRate = null
+}) => {
+  const [currentSpeed, setCurrentSpeed] = useState(staticSpeed || 0)
+  const [productionRate, setProductionRate] = useState(staticRate || 23000)
   const targetSpeed = 400
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSpeed((prev) => {
-        const change = Math.random() * 20 - 10
-        return Math.max(0, Math.min(targetSpeed, prev + change))
-      })
-    }, 1000)
+    // Only animate for current performance
+    if (timeframe === "current") {
+      const interval = setInterval(() => {
+        setCurrentSpeed((prev) => {
+          const change = Math.random() * 20 - 10
+          return Math.max(0, Math.min(targetSpeed, prev + change))
+        })
+        
+        setProductionRate((prev) => {
+          const change = Math.floor(Math.random() * 200) - 100
+          return Math.max(22000, Math.min(24000, prev + change))
+        })
+      }, 1000)
 
-    return () => clearInterval(interval)
-  }, [])
+      return () => clearInterval(interval)
+    } else {
+      // For MTD and YTD, we use static values based on the selected line
+      // This would typically come from an API call with the lineId
+      if (lineId) {
+        // Simulating different values based on timeframe and lineId
+        // In a real app, this would be replaced with API data
+        if (timeframe === "mtd") {
+          if (lineId === "Overall") {
+            setCurrentSpeed(360)
+            setProductionRate(21500)
+          } else if (lineId === "Line 1") {
+            setCurrentSpeed(380)
+            setProductionRate(22500)
+          } else if (lineId === "Line 2") {
+            setCurrentSpeed(350)
+            setProductionRate(21000)
+          } else {
+            setCurrentSpeed(320)
+            setProductionRate(19800)
+          }
+        } else if (timeframe === "ytd") {
+          if (lineId === "Overall") {
+            setCurrentSpeed(350)
+            setProductionRate(21000)
+          } else if (lineId === "Line 1") {
+            setCurrentSpeed(365)
+            setProductionRate(21800)
+          } else if (lineId === "Line 2") {
+            setCurrentSpeed(340)
+            setProductionRate(20500)
+          } else {
+            setCurrentSpeed(310)
+            setProductionRate(19200)
+          }
+        }
+      }
+    }
+  }, [timeframe, lineId, targetSpeed, staticSpeed, staticRate])
 
   const percentage = (currentSpeed / targetSpeed) * 100
   const needleRotation = (percentage / 100) * 180 - 90
 
+  // Determine title based on timeframe
+  const getTitle = () => {
+    switch (timeframe) {
+      case "mtd":
+        return "MTD Speed"
+      case "ytd":
+        return "YTD Speed"
+      default:
+        return "Current Speed"
+    }
+  }
+
   return (
     <Card className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
       <CardHeader className="space-y-1 p-2">
-        <div className="flex items-center space-x-2">
-          <Target className="w-4 h-4 text-blue-500" />
-          <CardTitle className="text-sm font-semibold">Speed</CardTitle>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center space-x-2">
+            <Target className="w-4 h-4 text-blue-500" />
+            <CardTitle className="text-sm font-semibold">{getTitle()}</CardTitle>
+          </div>
+          <div className="flex items-center">
+            <Badge variant="outline" className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 font-medium">
+              {productionRate.toLocaleString()} su/hr
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="p-2">
@@ -284,6 +353,8 @@ function KPIDashboard() {
   const [selectedChart, setSelectedChart] = useState<string | null>(null)
   const chartRef = useRef<HTMLDivElement>(null)
 
+  const [selectedDowntimeCategory, setSelectedDowntimeCategory] = useState<string | null>(null);
+
   const handlePrint = async () => {
     if (chartRef.current && selectedChart) {
       const { exportChartToPDF } = await import('@/utils/chart-export');
@@ -404,12 +475,28 @@ function KPIDashboard() {
     });
     
     return (
-      <Dialog open={!!selectedChart} onOpenChange={() => setSelectedChart(null)}>
+      <Dialog open={!!selectedChart} onOpenChange={() => {
+        setSelectedChart(null);
+        setSelectedDowntimeCategory(null);
+      }}>
         <DialogContent className="max-w-[90vw] w-[900px] h-[700px] flex flex-col bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 border-0">
           <DialogHeader className="border-b pb-4">
-            <div className="flex items-center space-x-2">
-              <Activity className="w-6 h-6 text-blue-500" />
-              <DialogTitle className="text-xl font-semibold">{selectedChart}</DialogTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Activity className="w-6 h-6 text-blue-500" />
+                <DialogTitle className="text-xl font-semibold">
+                  {selectedDowntimeCategory ? `${selectedDowntimeCategory} Breakdown` : selectedChart}
+                </DialogTitle>
+              </div>
+              {selectedDowntimeCategory && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setSelectedDowntimeCategory(null)}
+                  className="text-sm text-gray-500 hover:text-gray-700"
+                >
+                  Back to Overview
+                </Button>
+              )}
             </div>
           </DialogHeader>
           <div ref={chartRef} className="flex-1 p-8">
@@ -481,52 +568,111 @@ function KPIDashboard() {
                 </ComposedChart>
               </ResponsiveContainer>
             )}
-            {selectedChart === "Downtime" && (
+            {selectedChart === "Downtime" && !selectedDowntimeCategory && (
               <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
-                  <defs>
-                    {downtimeData.map((entry, index) => (
-                      <linearGradient key={index} id={`pieGradient${index}`} x1="0%" y1="0%" x2="0%" y2="1">
-                        <stop offset="0%" stopColor={entry.color} stopOpacity={0.8}/>
-                        <stop offset="100%" stopColor={entry.color} stopOpacity={0.3}/>
-                      </linearGradient>
-                    ))}
-                  </defs>
                   <Pie
                     data={downtimeData}
                     cx="50%"
                     cy="50%"
-                    outerRadius={Math.min(window.innerWidth * 0.25, window.innerHeight * 0.25)}
-                    innerRadius={Math.min(window.innerWidth * 0.15, window.innerHeight * 0.15)}
+                    outerRadius={Math.min(window.innerWidth * 0.2, window.innerHeight * 0.2)}
+                    innerRadius={Math.min(window.innerWidth * 0.12, window.innerHeight * 0.12)}
                     paddingAngle={2}
                     dataKey="value"
+                    onClick={(data) => setSelectedDowntimeCategory(data.name)}
+                    className="cursor-pointer"
+                    label={({ name, value, cx, cy, midAngle, innerRadius, outerRadius }) => {
+                      const RADIAN = Math.PI / 180;
+                      // Calculate position for the text
+                      const radius = outerRadius * 1.2;
+                      const x = cx + radius * Math.cos(-midAngle * RADIAN);
+                      const y = cy + radius * Math.sin(-midAngle * RADIAN);
+                      
+                      // Calculate position for the line
+                      const lineEnd = {
+                        x: cx + (outerRadius + 10) * Math.cos(-midAngle * RADIAN),
+                        y: cy + (outerRadius + 10) * Math.sin(-midAngle * RADIAN),
+                      };
+                      
+                      // Determine text anchor based on position
+                      const textAnchor = x > cx ? 'start' : 'end';
+                      
+                      return (
+                        <g>
+                          {/* Line from segment to label */}
+                          <path
+                            d={`M ${cx + outerRadius * Math.cos(-midAngle * RADIAN)},${cy + outerRadius * Math.sin(-midAngle * RADIAN)}
+                               L ${lineEnd.x},${lineEnd.y}
+                               L ${x},${y}`}
+                            stroke="currentColor"
+                            strokeWidth={1}
+                            fill="none"
+                            strokeOpacity={0.7}
+                          />
+                          {/* Label text */}
+                          <text
+                            x={x}
+                            y={y}
+                            textAnchor={textAnchor}
+                            fill="currentColor"
+                            dominantBaseline="central"
+                            className="text-xs font-medium"
+                          >
+                            {`${name}: ${value}%`}
+                          </text>
+                        </g>
+                      );
+                    }}
                     labelLine={false}
-                    label={({ name, value }) => `${name}: ${value}%`}
                   >
                     {downtimeData.map((entry, index) => (
                       <Cell 
                         key={index} 
-                        fill={`url(#pieGradient${index})`}
+                        fill={entry.color}
                         stroke={entry.color}
                         strokeWidth={2}
+                        className="hover:opacity-80 transition-opacity"
                       />
                     ))}
                   </Pie>
-                  <RechartsTooltip 
-                    contentStyle={{ 
-                      backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                      borderRadius: '8px',
-                      border: '1px solid rgba(148, 163, 184, 0.2)',
-                      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                    }}
-                    formatter={(value: number, name: string, props: any) => {
-                      // Get the actual name from the data
-                      const entry = downtimeData.find(item => item.value === value);
-                      return [`${value}%`, entry ? entry.name : name];
+                  <Legend
+                    verticalAlign="middle"
+                    align="right"
+                    layout="vertical"
+                    iconType="circle"
+                    formatter={(value, entry) => {
+                      const item = downtimeData.find(d => d.name === value);
+                      return `${value}: ${item?.value}%`;
                     }}
                   />
                 </PieChart>
               </ResponsiveContainer>
+            )}
+            {selectedChart === "Downtime" && selectedDowntimeCategory && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-3 gap-4">
+                  {detailedDowntimeData[selectedDowntimeCategory].map((item, index) => (
+                    <div 
+                      key={index}
+                      className="p-4 rounded-lg bg-white dark:bg-gray-800 shadow-md"
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-medium text-sm">{item.reason}</h3>
+                        <Badge variant="secondary">{item.percentage}%</Badge>
+                      </div>
+                      <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
+                        <div
+                          className="bg-blue-500 h-2 rounded-full"
+                          style={{ 
+                            width: `${(item.percentage / Math.max(...detailedDowntimeData[selectedDowntimeCategory].map(i => i.percentage))) * 100}%` 
+                          }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-500 mt-2">{item.duration} hours</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
             {selectedChart === "Energy & Utilities" && (
               <ResponsiveContainer width="100%" height="100%">
@@ -814,6 +960,81 @@ function KPIDashboard() {
     })),
   }
 
+  const detailedDowntimeData = {
+    "Downtime": [
+      { reason: "Machine Breakdown", duration: 12, percentage: 12 },
+      { reason: "Equipment Failure", duration: 8, percentage: 8 },
+      { reason: "System Error", duration: 4, percentage: 4 },
+      { reason: "Power Outage", duration: 3, percentage: 3 },
+      { reason: "Software Issues", duration: 2, percentage: 2 },
+      { reason: "Sensor Malfunction", duration: 1, percentage: 1 },
+      { reason: "Control System Error", duration: 0.8, percentage: 0.8 },
+      { reason: "Network Issues", duration: 0.5, percentage: 0.5 },
+      { reason: "PLC Failure", duration: 0.4, percentage: 0.4 },
+      { reason: "HMI Issues", duration: 0.3, percentage: 0.3 }
+    ],
+    "Maintenance": [
+      { reason: "Scheduled Maintenance", duration: 5, percentage: 5 },
+      { reason: "Preventive Maintenance", duration: 3, percentage: 3 },
+      { reason: "Filter Change", duration: 1, percentage: 1 },
+      { reason: "Lubrication", duration: 0.8, percentage: 0.8 },
+      { reason: "Belt Replacement", duration: 0.5, percentage: 0.5 },
+      { reason: "Calibration", duration: 0.4, percentage: 0.4 },
+      { reason: "Safety Check", duration: 0.4, percentage: 0.4 },
+      { reason: "Cleaning", duration: 0.4, percentage: 0.4 },
+      { reason: "Parts Replacement", duration: 0.3, percentage: 0.3 },
+      { reason: "Inspection", duration: 0.2, percentage: 0.2 }
+    ],
+    "White Time": [
+      { reason: "Shift Change", duration: 10, percentage: 10 },
+      { reason: "Break Time", duration: 5, percentage: 5 },
+      { reason: "Team Meeting", duration: 3, percentage: 3 },
+      { reason: "Training", duration: 2, percentage: 2 },
+      { reason: "Documentation", duration: 1, percentage: 1 },
+      { reason: "Safety Briefing", duration: 0.8, percentage: 0.8 },
+      { reason: "Quality Review", duration: 0.5, percentage: 0.5 },
+      { reason: "Planning Session", duration: 0.3, percentage: 0.3 },
+      { reason: "Handover", duration: 0.2, percentage: 0.2 },
+      { reason: "Audit", duration: 0.2, percentage: 0.2 }
+    ],
+    "External Cause": [
+      { reason: "Material Shortage", duration: 10, percentage: 10 },
+      { reason: "Supplier Delay", duration: 5, percentage: 5 },
+      { reason: "Weather Conditions", duration: 3, percentage: 3 },
+      { reason: "Power Supply Issues", duration: 2, percentage: 2 },
+      { reason: "External Quality Issues", duration: 1, percentage: 1 },
+      { reason: "Transportation Delay", duration: 0.8, percentage: 0.8 },
+      { reason: "Regulatory Inspection", duration: 0.5, percentage: 0.5 },
+      { reason: "External Audit", duration: 0.3, percentage: 0.3 },
+      { reason: "Utility Supply Issues", duration: 0.2, percentage: 0.2 },
+      { reason: "Local Restrictions", duration: 0.2, percentage: 0.2 }
+    ],
+    "Grade Change": [
+      { reason: "Product Changeover", duration: 2, percentage: 2 },
+      { reason: "Setup Time", duration: 1, percentage: 1 },
+      { reason: "Recipe Change", duration: 0.5, percentage: 0.5 },
+      { reason: "Material Change", duration: 0.4, percentage: 0.4 },
+      { reason: "Quality Adjustment", duration: 0.3, percentage: 0.3 },
+      { reason: "Parameter Setup", duration: 0.3, percentage: 0.3 },
+      { reason: "Testing Time", duration: 0.2, percentage: 0.2 },
+      { reason: "Validation", duration: 0.1, percentage: 0.1 },
+      { reason: "Documentation Update", duration: 0.1, percentage: 0.1 },
+      { reason: "System Update", duration: 0.1, percentage: 0.1 }
+    ],
+    "Speed Loss": [
+      { reason: "Minor Stoppages", duration: 2, percentage: 2 },
+      { reason: "Reduced Speed", duration: 1, percentage: 1 },
+      { reason: "Process Variation", duration: 0.5, percentage: 0.5 },
+      { reason: "Equipment Wear", duration: 0.4, percentage: 0.4 },
+      { reason: "Material Issues", duration: 0.3, percentage: 0.3 },
+      { reason: "Operator Adjustment", duration: 0.2, percentage: 0.2 },
+      { reason: "Environmental Factors", duration: 0.2, percentage: 0.2 },
+      { reason: "Quality Checks", duration: 0.2, percentage: 0.2 },
+      { reason: "Process Control", duration: 0.1, percentage: 0.1 },
+      { reason: "Minor Adjustments", duration: 0.1, percentage: 0.1 }
+    ]
+  };
+
   return (
     <div className="flex flex-col gap-1.5 p-0.5">
       <div className="grid gap-1.5 md:grid-cols-4 pt-2">
@@ -955,14 +1176,25 @@ function KPIDashboard() {
       </div>
 
       <div className="grid gap-1.5 md:grid-cols-4">
-        {[1, 2, 3].map((_, i) => (
-          <ProductionRateCard key={i} />
-        ))}
+        <ProductionRateCard 
+          timeframe="current" 
+          lineId={selectedCurrentLine} 
+        />
+        <ProductionRateCard 
+          timeframe="mtd" 
+          lineId={selectedMTDLine} 
+        />
+        <ProductionRateCard 
+          timeframe="ytd" 
+          lineId={selectedYTDLine} 
+        />
         <Card className="bg-gradient-to-br from-white to-gray-50 dark:from-gray-900 dark:to-gray-800 shadow-lg hover:shadow-xl transition-all duration-300">
           <CardHeader className="space-y-1 p-2">
-            <div className="flex items-center space-x-2">
-              <Shield className="w-4 h-4 text-blue-500" />
-              <CardTitle className="text-sm font-semibold">Safe Days</CardTitle>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Shield className="w-4 h-4 text-blue-500" />
+                <CardTitle className="text-sm font-semibold">Safe Days</CardTitle>
+              </div>
             </div>
           </CardHeader>
           <CardContent className="p-2 space-y-2">

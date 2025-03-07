@@ -25,7 +25,7 @@ export function OEEReport() {
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   return (
     <div className="space-y-4">
-      <div className="text-sm text-muted-foreground">
+      {/* <div className="text-sm text-muted-foreground">
         PixwingAi/Kimberly Clark Lever, Pune./Diaper//Zuko2
         <br />
         01/Feb/2011 11:15 PM through 03/Feb/2011 3:15 PM
@@ -33,7 +33,7 @@ export function OEEReport() {
         Shift: - all -
         <br />
         Hours: - all -
-      </div>
+      </div> */}
       <div className="h-[calc(100vh-20rem)] w-full" onClick={() => setIsDialogOpen(true)}>
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={waterfallData} margin={{ top: 20, right: 30, left: 20, bottom: 60 }}>
