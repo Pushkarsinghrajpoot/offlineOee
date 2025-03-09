@@ -87,9 +87,30 @@ export const ProductionRateCard = ({
           } else if (lineId === "Line 2") {
             setCurrentSpeed(350)
             setProductionRate(21000)
-          } else {
-            setCurrentSpeed(320)
-            setProductionRate(19800)
+          } else if (lineId === "Line 3") {
+            setCurrentSpeed(370)
+            setProductionRate(22000)
+          } else if (lineId === "Line 4") {
+            setCurrentSpeed(330)
+            setProductionRate(20000)
+          } else if (lineId === "Line 5") {
+            setCurrentSpeed(390)
+            setProductionRate(23000)
+          } else if (lineId === "Line 6") {
+            setCurrentSpeed(340)
+            setProductionRate(20500)
+          } else if (lineId === "Line 7") {
+            setCurrentSpeed(360)
+            setProductionRate(21500)
+          } else if (lineId === "Line 8") {
+            setCurrentSpeed(380)
+            setProductionRate(22500)
+          } else if (lineId === "Line 9") {
+            setCurrentSpeed(350)
+            setProductionRate(21000)
+          } else if (lineId === "Line 10") {
+            setCurrentSpeed(370)
+            setProductionRate(22000)
           }
         } else if (timeframe === "ytd") {
           if (lineId === "Overall") {
@@ -101,9 +122,30 @@ export const ProductionRateCard = ({
           } else if (lineId === "Line 2") {
             setCurrentSpeed(340)
             setProductionRate(20500)
-          } else {
-            setCurrentSpeed(310)
-            setProductionRate(19200)
+          } else if (lineId === "Line 3") {
+            setCurrentSpeed(375)
+            setProductionRate(22200)
+          } else if (lineId === "Line 4") {
+            setCurrentSpeed(335)
+            setProductionRate(20200)
+          } else if (lineId === "Line 5") {
+            setCurrentSpeed(395)
+            setProductionRate(23200)
+          } else if (lineId === "Line 6") {
+            setCurrentSpeed(345)
+            setProductionRate(20700)
+          } else if (lineId === "Line 7") {
+            setCurrentSpeed(365)
+            setProductionRate(21800)
+          } else if (lineId === "Line 8") {
+            setCurrentSpeed(385)
+            setProductionRate(22700)
+          } else if (lineId === "Line 9") {
+            setCurrentSpeed(355)
+            setProductionRate(21200)
+          } else if (lineId === "Line 10") {
+            setCurrentSpeed(375)
+            setProductionRate(22200)
           }
         }
       }
@@ -346,9 +388,33 @@ function OEECard({ title, data }: { title: string, data: any }) {
 function KPIDashboard() {
   const { checkAccess } = useAuth();
   const canExport = checkAccess('reports');
-  const [selectedCurrentLine, setSelectedCurrentLine] = useState("Overall");
-  const [selectedMTDLine, setSelectedMTDLine] = useState("Overall");
-  const [selectedYTDLine, setSelectedYTDLine] = useState("Overall");
+  const lines = [
+    "Line 1", "Line 2", "Line 3", "Line 4", "Line 5",
+    "Line 6", "Line 7", "Line 8", "Line 9", "Line 10"
+  ]
+
+  const getStoredLine = (key: string) => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem(key) || "Line 1"
+    }
+    return "Line 1"
+  }
+
+  const [selectedCurrentLine, setSelectedCurrentLine] = useState(getStoredLine('selectedCurrentLine'))
+  const [selectedMTDLine, setSelectedMTDLine] = useState(getStoredLine('selectedMTDLine'))
+  const [selectedYTDLine, setSelectedYTDLine] = useState(getStoredLine('selectedYTDLine'))
+
+  useEffect(() => {
+    localStorage.setItem('selectedCurrentLine', selectedCurrentLine)
+  }, [selectedCurrentLine])
+
+  useEffect(() => {
+    localStorage.setItem('selectedMTDLine', selectedMTDLine)
+  }, [selectedMTDLine])
+
+  useEffect(() => {
+    localStorage.setItem('selectedYTDLine', selectedYTDLine)
+  }, [selectedYTDLine])
 
   const [selectedChart, setSelectedChart] = useState<string | null>(null)
   const chartRef = useRef<HTMLDivElement>(null)
@@ -844,25 +910,10 @@ function KPIDashboard() {
     );
   }
 
-  const lines = [
-    "Line 1",
-    "Line 2",
-    "Line 3",
-    "Line 4",
-    "Line 5",
-    "Line 6",
-    "Line 7",
-    "Line 8",
-    "Line 9",
-    "Line 10",
-    "Overall"
-  ];
-
-  // Current performance data for each line and overall
   const currentLineData = {
     "Line 1": { oee: 78, availability: 92, efficiency: 85, quality: 96 },
     "Line 2": { oee: 72, availability: 88, efficiency: 83, quality: 93 },
-    "Line 3": { oee: 68, availability: 85, efficiency: 81, quality: 91 },
+    "Line 3": { oee: 80, availability: 93, efficiency: 86, quality: 95 },
     "Line 4": { oee: 75, availability: 90, efficiency: 84, quality: 94 },
     "Line 5": { oee: 82, availability: 94, efficiency: 87, quality: 97 },
     "Line 6": { oee: 70, availability: 87, efficiency: 82, quality: 92 },
@@ -873,11 +924,10 @@ function KPIDashboard() {
     "Overall": { oee: 75, availability: 90, efficiency: 84, quality: 94 }
   };
 
-  // MTD performance data for each line and overall
   const mtdLineData = {
     "Line 1": { oee: 75, availability: 90, efficiency: 83, quality: 94 },
     "Line 2": { oee: 73, availability: 89, efficiency: 82, quality: 93 },
-    "Line 3": { oee: 71, availability: 88, efficiency: 81, quality: 92 },
+    "Line 3": { oee: 78, availability: 92, efficiency: 85, quality: 95 },
     "Line 4": { oee: 80, availability: 93, efficiency: 86, quality: 96 },
     "Line 5": { oee: 77, availability: 91, efficiency: 84, quality: 95 },
     "Line 6": { oee: 72, availability: 88, efficiency: 82, quality: 93 },
@@ -888,11 +938,10 @@ function KPIDashboard() {
     "Overall": { oee: 74, availability: 89, efficiency: 83, quality: 94 }
   };
 
-  // YTD data for individual lines
   const ytdLineData = {
     "Line 1": { oee: 77, availability: 92, efficiency: 85, quality: 96 },
     "Line 2": { oee: 75, availability: 90, efficiency: 84, quality: 94 },
-    "Line 3": { oee: 73, availability: 89, efficiency: 83, quality: 93 },
+    "Line 3": { oee: 79, availability: 93, efficiency: 86, quality: 95 },
     "Line 4": { oee: 78, availability: 93, efficiency: 86, quality: 95 },
     "Line 5": { oee: 80, availability: 94, efficiency: 87, quality: 97 },
     "Line 6": { oee: 74, availability: 89, efficiency: 84, quality: 93 },
@@ -910,22 +959,17 @@ function KPIDashboard() {
   };
 
   const linewiseData = [
-    { line: "Line 1", oee: 56, waste: 1 },
-    { line: "Line 2", oee: 65, waste: 3 },
-    { line: "Line 3", oee: 54, waste: 3 },
-    { line: "Line 4", oee: 76, waste: 2 },
-    { line: "Line 5", oee: 82, waste: 3 },
-    { line: "Line 6", oee: 45, waste: 3 },
-    { line: "Line 7", oee: 85, waste: 2 },
-    { line: "Line 8", oee: 82, waste: 3 },
-    { line: "Line 9", oee: 45, waste: 3 },
-    { line: "Line 10", oee: 85, waste: 2 },
+    { line: "Line 1", oee: 78, waste: 2.5 },
+    { line: "Line 2", oee: 72, waste: 3.2 },
+    { line: "Line 3", oee: 54, waste: 3.0 },
+    { line: "Line 4", oee: 76, waste: 2.1 },
+    { line: "Line 5", oee: 82, waste: 2.8 },
+    { line: "Line 6", oee: 45, waste: 3.3 },
+    { line: "Line 7", oee: 85, waste: 2.0 },
+    { line: "Line 8", oee: 82, waste: 2.7 },
+    { line: "Line 9", oee: 45, waste: 3.4 },
+    { line: "Line 10", oee: 85, waste: 2.2 }
   ]
-
-  const productionRate = {
-    current: 203,
-    target: 400,
-  }
 
   const downtimeData = [
     { name: "Downtime", value: 32, color: "#3b82f6" },
@@ -1042,18 +1086,18 @@ function KPIDashboard() {
           <div className="mb-1.5">
             <Select value={selectedCurrentLine} onValueChange={setSelectedCurrentLine}>
               <SelectTrigger className="w-full bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-gray-800 dark:to-gray-700 border border-blue-200 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
-                <SelectValue placeholder="Select line for current performance" />
+                <SelectValue placeholder="Select line" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Overall" className="cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 font-semibold">
-                  Overall Performance
-                </SelectItem>
-                <SelectItem value="divider" className="h-px bg-gray-200 dark:bg-gray-700 my-1" disabled />
                 {lines.map((line) => (
                   <SelectItem key={line} value={line} className="cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700">
                     {line}
                   </SelectItem>
                 ))}
+                <SelectItem value="divider" className="h-px bg-gray-200 dark:bg-gray-700 my-1" disabled />
+                <SelectItem value="Overall" className="cursor-pointer hover:bg-blue-50 dark:hover:bg-gray-700 font-semibold">
+                  Overall Performance
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1064,18 +1108,18 @@ function KPIDashboard() {
           <div className="mb-1.5">
             <Select value={selectedMTDLine} onValueChange={setSelectedMTDLine}>
               <SelectTrigger className="w-full bg-gradient-to-r from-green-50 to-emerald-50 dark:from-gray-800 dark:to-gray-700 border border-green-200 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
-                <SelectValue placeholder="Select line for MTD" />
+                <SelectValue placeholder="Select line" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Overall" className="cursor-pointer hover:bg-green-50 dark:hover:bg-gray-700 font-semibold">
-                  Overall Performance
-                </SelectItem>
-                <SelectItem value="divider" className="h-px bg-gray-200 dark:bg-gray-700 my-1" disabled />
                 {lines.map((line) => (
                   <SelectItem key={line} value={line} className="cursor-pointer hover:bg-green-50 dark:hover:bg-gray-700">
                     {line}
                   </SelectItem>
                 ))}
+                <SelectItem value="divider" className="h-px bg-gray-200 dark:bg-gray-700 my-1" disabled />
+                <SelectItem value="Overall" className="cursor-pointer hover:bg-green-50 dark:hover:bg-gray-700 font-semibold">
+                  Overall Performance
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -1086,18 +1130,18 @@ function KPIDashboard() {
           <div className="mb-1.5">
             <Select value={selectedYTDLine} onValueChange={setSelectedYTDLine}>
               <SelectTrigger className="w-full bg-gradient-to-r from-purple-50 to-violet-50 dark:from-gray-800 dark:to-gray-700 border border-purple-200 dark:border-gray-600 rounded-lg shadow-sm hover:shadow-md transition-all duration-300">
-                <SelectValue placeholder="Select line for YTD" />
+                <SelectValue placeholder="Select line" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="Overall" className="cursor-pointer hover:bg-purple-50 dark:hover:bg-gray-700 font-semibold">
-                  Overall Performance
-                </SelectItem>
-                <SelectItem value="divider" className="h-px bg-gray-200 dark:bg-gray-700 my-1" disabled />
                 {lines.map((line) => (
                   <SelectItem key={line} value={line} className="cursor-pointer hover:bg-purple-50 dark:hover:bg-gray-700">
                     {line}
                   </SelectItem>
                 ))}
+                <SelectItem value="divider" className="h-px bg-gray-200 dark:bg-gray-700 my-1" disabled />
+                <SelectItem value="Overall" className="cursor-pointer hover:bg-purple-50 dark:hover:bg-gray-700 font-semibold">
+                  Overall Performance
+                </SelectItem>
               </SelectContent>
             </Select>
           </div>

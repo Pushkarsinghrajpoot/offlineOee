@@ -141,7 +141,7 @@ export default function LoginPage() {
           </div>
           
           <div className="mt-8 text-white/70 text-sm relative z-10">
-            &copy; 2025 PixWingAI. All rights reserved.
+            &copy; 2024 PixWingAI. All rights reserved.
           </div>
         </div>
         

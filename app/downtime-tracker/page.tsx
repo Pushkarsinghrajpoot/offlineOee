@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { TooltipProvider } from "@/components/ui/tooltip"
 import { withRoleCheck } from "@/components/auth/with-role-check"
 import { motion } from "framer-motion"
+
 import DatePicker from "react-datepicker"
 import "react-datepicker/dist/react-datepicker.css"
 import { format } from "date-fns"
@@ -30,21 +31,24 @@ const dtTypes = [
   "Planned",
   "Unplanned",
   "Maintenance",
-  "Quality Check"
+  "Quality Check",
+  "Plant Shutdown"
 ]
 
 const applicatorsByDtType = {
   "Planned": ["Production Manager", "Shift Supervisor", "Line Leader"],
   "Unplanned": ["Machine Operator", "Maintenance Team", "Quality Inspector"],
   "Maintenance": ["Maintenance Team", "External Technician"],
-  "Quality Check": ["Quality Inspector", "Production Manager"]
+  "Quality Check": ["Quality Inspector", "Production Manager"],
+  "Plant Shutdown": ["Production Manager", "Plant Manager", "Maintenance Manager"]
 }
 
 const delayReasonsByDtType = {
   "Planned": ["Scheduled Maintenance", "Shift Change", "Break Time", "Team Meeting"],
   "Unplanned": ["Machine Breakdown", "Material Shortage", "Power Failure", "Emergency"],
   "Maintenance": ["Preventive Maintenance", "Repair Work", "Part Replacement", "Calibration"],
-  "Quality Check": ["Product Testing", "Quality Audit", "Sample Inspection", "Parameter Adjustment"]
+  "Quality Check": ["Product Testing", "Quality Audit", "Sample Inspection", "Parameter Adjustment"],
+  "Plant Shutdown": ["Power Outage", "Facility Maintenance", "Holiday", "Emergency Shutdown"]
 }
 
 // Operator options
@@ -162,7 +166,7 @@ export default function DowntimeTracker() {
   const [selectedDate, setSelectedDate] = useState(new Date())
   const [shiftStartTime, setShiftStartTime] = useState(new Date())
   const [shiftEndTime, setShiftEndTime] = useState(new Date())
-  const [selectedShift, setSelectedShift] = useState(shifts[0])
+  const [selectedShift, setSelectedShift] = useState("A")
   const [selectedOperator, setSelectedOperator] = useState(operators[0])
   const [lineDetails, setLineDetails] = useState({
     line: "Line 1",
@@ -193,33 +197,90 @@ export default function DowntimeTracker() {
   })
   const [delayEntries, setDelayEntries] = useState([
     {
-      startTime: "08:00",
-      endTime: "08:30",
-      scheduleTime: "08:00",
-      shift: "A",
+      startTime: "07:00",
+      endTime: "08:00",
       tpc: 1000,
       machineWaste: 20,
       finalWaste: 10,
       gpc: 100,
       wasteReason: "Material Jam",
-      downtimes: [],
-      isSaved: false
+      downtimes: [
+        {
+          dtStart: "07:15",
+          dtEnd: "07:30",
+          dtInMin: 15,
+          typeOfDT: "Unplanned",
+          applicator: "Maintenance Team",
+          delayReason: "Machine Breakdown",
+          remarks: "Unexpected issue with conveyor belt"
+        }
+      ],
+      isSaved: true
+    },
+    {
+      startTime: "08:00",
+      endTime: "09:00",
+      tpc: 1200,
+      machineWaste: 15,
+      finalWaste: 8,
+      gpc: 120,
+      wasteReason: "Setup Issues",
+      downtimes: [
+        {
+          dtStart: "08:10",
+          dtEnd: "08:20",
+          dtInMin: 10,
+          typeOfDT: "Planned",
+          applicator: "Production Manager",
+          delayReason: "Scheduled Maintenance",
+          remarks: "Regular check"
+        }
+      ],
+      isSaved: true
+    },
+    {
+      startTime: "15:00",
+      endTime: "16:00",
+      tpc: 950,
+      machineWaste: 25,
+      finalWaste: 12,
+      gpc: 95,
+      wasteReason: "Power Failure",
+      downtimes: [
+        {
+          dtStart: "15:20",
+          dtEnd: "15:45",
+          dtInMin: 25,
+          typeOfDT: "Unplanned",
+          applicator: "Maintenance Team",
+          delayReason: "Power Failure",
+          remarks: "Unexpected power outage"
+        }
+      ],
+      isSaved: true
+    },
+    {
+      startTime: "23:00",
+      endTime: "00:00",
+      tpc: 1100,
+      machineWaste: 18,
+      finalWaste: 9,
+      gpc: 110,
+      wasteReason: "Material Jam",
+      downtimes: [
+        {
+          dtStart: "23:30",
+          dtEnd: "23:45",
+          dtInMin: 15,
+          typeOfDT: "Maintenance",
+          applicator: "Maintenance Team",
+          delayReason: "Repair Work",
+          remarks: "Quick fix for material feed system"
+        }
+      ],
+      isSaved: true
     }
   ])
-  const [newEntry, setNewEntry] = useState({
-    startTime: "",
-    endTime: "",
-    scheduleTime: "",
-    shift: "",
-    tpc: 0,
-    machineWaste: 0,
-    finalWaste: 0,
-    gpc: 0,
-    wasteReason: "",
-    downtimes: [],
-    isSaved: false
-  })
-
   const [metrics, setMetrics] = useState({
     diligenceScore: 90,
     delayCount: 0,
@@ -237,11 +298,23 @@ export default function DowntimeTracker() {
   const [editMode, setEditMode] = useState<number | null>(null)
 
   const resetDowntimeForm = useCallback(() => {
+    // Get current time in HH:MM format
+    const now = new Date();
+    const currentHour = now.getHours().toString().padStart(2, '0');
+    const currentMinute = now.getMinutes().toString().padStart(2, '0');
+    const currentTime = `${currentHour}:${currentMinute}`;
+    
+    // Calculate end time (15 minutes later)
+    const endTime = new Date(now.getTime() + 15 * 60000);
+    const endHour = endTime.getHours().toString().padStart(2, '0');
+    const endMinute = endTime.getMinutes().toString().padStart(2, '0');
+    const endTimeStr = `${endHour}:${endMinute}`;
+    
     setNewDowntime({
-      dtStart: "",
-      dtEnd: "",
-      dtInMin: 0,
-      typeOfDT: "",
+      dtStart: currentTime,
+      dtEnd: endTimeStr,
+      dtInMin: 15,
+      typeOfDT: "Unplanned",
       applicator: "",
       delayReason: "",
       remarks: ""
@@ -278,8 +351,11 @@ export default function DowntimeTracker() {
     resetDowntimeForm()
   }, [resetDowntimeForm])
 
-  const handleSubmit = useCallback(async (e) => {
-    e.preventDefault()
+  const handleSubmit = useCallback(async (e?: React.FormEvent) => {
+    // Only prevent default if e exists (form submission)
+    if (e && e.preventDefault) {
+      e.preventDefault();
+    }
     
     if (currentEntryIndex === null || isSubmitting) {
       return
@@ -389,11 +465,6 @@ export default function DowntimeTracker() {
       [field]: value
     };
 
-    // Automatically update shift when startTime changes
-    if (field === 'startTime' && value) {
-      updatedEntries[index].shift = getShiftFromTime(value);
-    }
-
     setDelayEntries(updatedEntries);
   }, [delayEntries])
 
@@ -420,8 +491,6 @@ export default function DowntimeTracker() {
     return (
       entry.startTime !== "" &&
       entry.endTime !== "" &&
-      entry.scheduleTime !== "" &&
-      entry.shift !== "" &&
       entry.tpc > 0 &&
       entry.machineWaste >= 0 &&
       entry.finalWaste >= 0 &&
@@ -455,8 +524,6 @@ export default function DowntimeTracker() {
     const newEntry = {
       startTime: "",
       endTime: "",
-      scheduleTime: "",
-      shift: "",
       tpc: 0,
       machineWaste: 0,
       finalWaste: 0,
@@ -469,6 +536,79 @@ export default function DowntimeTracker() {
     setEditMode(delayEntries.length) // Set edit mode to the new entry
   }, [delayEntries]);
 
+  const handlePlannedShutdown = useCallback(() => {
+    if (currentEntryIndex === null) return;
+    
+    // Get current time in HH:MM format
+    const now = new Date();
+    const currentHour = now.getHours().toString().padStart(2, '0');
+    const currentMinute = now.getMinutes().toString().padStart(2, '0');
+    const currentTime = `${currentHour}:${currentMinute}`;
+    
+    // Calculate end time (30 minutes later for planned shutdown)
+    const endTime = new Date(now.getTime() + 30 * 60000);
+    const endHour = endTime.getHours().toString().padStart(2, '0');
+    const endMinute = endTime.getMinutes().toString().padStart(2, '0');
+    const endTimeStr = `${endHour}:${endMinute}`;
+    
+    setNewDowntime({
+      dtStart: currentTime,
+      dtEnd: endTimeStr,
+      dtInMin: 30,
+      typeOfDT: "Planned",
+      applicator: "",
+      delayReason: "",
+      remarks: ""
+    });
+    
+    setShowDowntimeDialog(true);
+  }, [currentEntryIndex]);
+
+  const [editingDowntimeIndex, setEditingDowntimeIndex] = useState<number | null>(null);
+
+  const editDowntimeReason = (entryIndex: number, downtimeIndex: number) => {
+    const downtime = delayEntries[entryIndex].downtimes[downtimeIndex];
+    setNewDowntime({
+      ...downtime,
+      dtInMin: downtime.dtInMin || 0
+    });
+    setEditingDowntimeIndex(downtimeIndex);
+  };
+
+  const saveDowntimeReason = (entryIndex: number, downtimeIndex: number) => {
+    const updatedEntries = [...delayEntries];
+    updatedEntries[entryIndex].downtimes[downtimeIndex] = {
+      ...updatedEntries[entryIndex].downtimes[downtimeIndex],
+      delayReason: newDowntime.delayReason
+    };
+    setDelayEntries(updatedEntries);
+    setEditingDowntimeIndex(null);
+  };
+
+  const [showPlannedShutdownDialog, setShowPlannedShutdownDialog] = useState(false);
+
+  const [filteredDowntimeType, setFilteredDowntimeType] = useState('all');
+
+  useEffect(() => {
+    // Add keyframe animation for blinking
+    const style = document.createElement('style');
+    style.innerHTML = `
+      @keyframes blink-green {
+        0% { background-color: #22c55e; }
+        50% { background-color: #16a34a; }
+        100% { background-color: #22c55e; }
+      }
+      .blink-green {
+        animation: blink-green 2s infinite;
+      }
+    `;
+    document.head.appendChild(style);
+    
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   return (
     <div className="space-y-4">
       {/* Combined Header - More Compact */}
@@ -477,7 +617,7 @@ export default function DowntimeTracker() {
           <h2 className="text-lg font-bold text-white">Production Line Details</h2>
         </div>
         <CardContent className="p-3">
-          <div className="grid grid-cols-6 gap-2 mb-2">
+          <div className="grid grid-cols-7 gap-2 mb-2">
             {/* Row 1 */}
             <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
@@ -546,6 +686,23 @@ export default function DowntimeTracker() {
             
             <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Users className="h-3 w-3 text-blue-500" />
+                Shift
+              </Label>
+              <Select value={selectedShift} onValueChange={setSelectedShift}>
+                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
+                  <SelectValue placeholder="Select shift" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="A">Shift A</SelectItem>
+                  <SelectItem value="B">Shift B</SelectItem>
+                  <SelectItem value="C">Shift C</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                 <FileText className="h-3 w-3 text-blue-500" />
                 Production Order
               </Label>
@@ -570,7 +727,7 @@ export default function DowntimeTracker() {
           </div>
           
           {/* Row 2 */}
-          <div className="grid grid-cols-6 gap-2">
+          <div className="grid grid-cols-7 gap-2">
             <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                 <FileText className="h-3 w-3 text-blue-500" />
@@ -796,8 +953,6 @@ export default function DowntimeTracker() {
                 {
                   startTime: "",
                   endTime: "",
-                  scheduleTime: "",
-                  shift: "",
                   tpc: 0,
                   machineWaste: 0,
                   finalWaste: 0,
@@ -819,8 +974,6 @@ export default function DowntimeTracker() {
               <tr>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Start</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">End</th>
-                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Schedule</th>
-                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Shift</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">TPC</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">M.Waste</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">F.Waste</th>
@@ -850,31 +1003,6 @@ export default function DowntimeTracker() {
                       className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                       disabled={entry.isSaved && editMode !== index}
                     />
-                  </td>
-                  <td className="p-1">
-                    <Input
-                      type="time"
-                      value={entry.scheduleTime}
-                      onChange={(e) => handleEntryChange(index, 'scheduleTime', e.target.value)}
-                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                      disabled={entry.isSaved && editMode !== index}
-                    />
-                  </td>
-                  <td className="p-1">
-                    <Select
-                      value={entry.shift}
-                      onValueChange={(value) => handleEntryChange(index, 'shift', value)}
-                      disabled={entry.isSaved && editMode !== index}
-                    >
-                      <SelectTrigger className="h-8 text-xs px-2 min-w-[70px] rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
-                        <SelectValue placeholder="Shift" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {shifts.map((shift) => (
-                          <SelectItem key={shift} value={shift} className="text-xs">{shift}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
                   </td>
                   <td className="p-1">
                     <Input
@@ -922,7 +1050,7 @@ export default function DowntimeTracker() {
                       onValueChange={(value) => handleEntryChange(index, 'wasteReason', value)}
                       disabled={entry.isSaved && editMode !== index}
                     >
-                      <SelectTrigger className="h-8 text-xs px-2 min-w-[80px] rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50">
+                      <SelectTrigger className="h-8 text-xs">
                         <SelectValue placeholder="Reason" />
                       </SelectTrigger>
                       <SelectContent>
@@ -934,31 +1062,21 @@ export default function DowntimeTracker() {
                   </td>
                   <td className="p-1">
                     <div className="flex flex-col gap-1">
-                      {entry.downtimes.length > 0 ? (
-                        <div className="text-xs flex items-center gap-1 bg-indigo-50 p-1.5 rounded-md border border-indigo-100">
-                          <span className="font-medium text-indigo-600">{entry.downtimes.length}</span>
-                          <span className="text-gray-500">items</span>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => openDowntimeDetails(index)}
-                            className="ml-auto h-6 w-6 p-0 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-100 rounded-full"
-                          >
-                            <Eye className="h-3.5 w-3.5" />
-                          </Button>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-gray-400 italic p-1">No downtimes</div>
-                      )}
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => openDowntimeDialog(index)}
+                        onClick={() => openDowntimeDetails(index)}
                         disabled={entry.isSaved && editMode !== index}
-                        className="h-7 text-xs px-2 py-0 border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:border-indigo-300 transition-all duration-200"
+                        className={`h-8 text-xs px-2 py-0 ${
+                          entry.downtimes.length === 0 
+                            ? 'bg-red-500 text-white hover:bg-red-600 border-red-500' 
+                            : 'bg-green-500 text-white hover:bg-green-600 border-green-500 blink-green'
+                        } transition-all duration-200 w-full`}
                       >
-                        <Plus className="h-3 w-3 mr-1" />
-                        Add
+                        {entry.downtimes.length === 0 
+                          ? 'Downtime' 
+                          : `Downtimes (${entry.downtimes.length})`
+                        }
                       </Button>
                     </div>
                   </td>
@@ -1026,15 +1144,254 @@ export default function DowntimeTracker() {
         </div>
       </Card>
 
-      {/* Downtime Dialog */}
-      <Dialog open={showDowntimeDialog} onOpenChange={setShowDowntimeDialog}>
+      {/* Downtime Details Dialog */}
+      <Dialog open={showDowntimeDetailsDialog} onOpenChange={setShowDowntimeDetailsDialog}>
+        <DialogContent className="w-full max-w-[900px] p-0 overflow-hidden">
+          <div className="flex justify-between items-center p-6 border-b border-gray-200">
+            <DialogTitle className="text-xl font-bold">
+              Downtime Details for Shift
+            </DialogTitle>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowDowntimeDetailsDialog(false)}
+              className="h-8 w-8 p-0 rounded-full"
+            >
+            </Button>
+          </div>
+
+          {currentEntryIndex !== null && (
+            <>
+              {/* Shift Summary */}
+              <div className="bg-gray-50 p-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Shift Time:</h3>
+                    <p className="text-base font-semibold">
+                      {delayEntries[currentEntryIndex]?.startTime || "--:--"} - {delayEntries[currentEntryIndex]?.endTime || "--:--"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Total Downtimes:</h3>
+                    <p className="text-base font-semibold">
+                      {delayEntries[currentEntryIndex]?.downtimes?.length || 0}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Downtime Entries */}
+              <div className="p-6">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-bold">Downtime Entries</h3>
+                  <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Filter to show all downtimes
+                        setFilteredDowntimeType('all');
+                      }}
+                      className={`h-8 text-xs ${filteredDowntimeType === 'all' ? 'bg-gray-100' : ''}`}
+                    >
+                      All
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Filter to show only unplanned downtimes
+                        setFilteredDowntimeType('Unplanned');
+                      }}
+                      className={`h-8 text-xs ${filteredDowntimeType === 'Unplanned' ? 'bg-gray-100' : ''}`}
+                    >
+                      Unplanned
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Filter to show only planned downtimes
+                        setFilteredDowntimeType('Planned');
+                      }}
+                      className={`h-8 text-xs ${filteredDowntimeType === 'Planned' ? 'bg-gray-100' : ''}`}
+                    >
+                      Planned
+                    </Button>
+                  </div>
+                </div>
+                
+                {delayEntries[currentEntryIndex]?.downtimes?.length > 0 ? (
+                  <div className="overflow-x-auto">
+                    <table className="w-full border-collapse">
+                      <thead>
+                        <tr className="border-b border-gray-200">
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Start Time</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">End Time</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Duration (min)</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Type</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Reason</th>
+                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {delayEntries[currentEntryIndex].downtimes
+                          .filter(dt => filteredDowntimeType === 'all' || dt.typeOfDT === filteredDowntimeType)
+                          .map((dt, idx) => {
+                            // Find the actual index in the original array for correct editing
+                            const originalIndex = delayEntries[currentEntryIndex].downtimes.findIndex(
+                              item => item === dt
+                            );
+                            return (
+                              <tr key={idx} className={`border-b border-gray-100 ${dt.typeOfDT === 'Planned' ? 'bg-amber-50' : ''}`}>
+                                <td className="py-3 px-3">{dt.dtStart}</td>
+                                <td className="py-3 px-3">{dt.dtEnd}</td>
+                                <td className="py-3 px-3">{dt.dtInMin}</td>
+                                <td className="py-3 px-3">
+                                  <span className={`px-2 py-1 rounded-full text-xs ${
+                                    dt.typeOfDT === 'Planned' 
+                                      ? 'bg-amber-100 text-amber-800' 
+                                      : 'bg-red-100 text-red-800'
+                                  }`}>
+                                    {dt.typeOfDT}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-3">
+                                  {editingDowntimeIndex === originalIndex ? (
+                                    <Select
+                                      value={newDowntime.delayReason}
+                                      onValueChange={(value) => handleDowntimeChange('delayReason', value)}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Select reason" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {dt.typeOfDT && delayReasonsByDtType[dt.typeOfDT]?.map((reason) => (
+                                          <SelectItem key={reason} value={reason}>{reason}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    dt.delayReason || "-"
+                                  )}
+                                </td>
+                                <td className="py-3 px-3">
+                                  <div className="flex gap-2">
+                                    {editingDowntimeIndex === originalIndex ? (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => saveDowntimeReason(currentEntryIndex, originalIndex)}
+                                        className="h-8 text-xs font-medium bg-green-500 text-white hover:bg-green-600"
+                                      >
+                                        Save
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => editDowntimeReason(currentEntryIndex, originalIndex)}
+                                        className="h-8 text-xs font-medium"
+                                      >
+                                        Edit Reason
+                                      </Button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center">
+                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-3">
+                      <Clock className="h-6 w-6 text-gray-400" />
+                    </div>
+                    <p className="text-gray-500 mb-4">No downtime entries found for this delay period.</p>
+                  </div>
+                )}
+              </div>
+
+              {/* Summary Section */}
+              {delayEntries[currentEntryIndex]?.downtimes?.length > 0 && (
+                <div className="p-6 border-t border-gray-200 bg-gray-50">
+                  <h3 className="text-lg font-bold mb-4">Summary</h3>
+                  <div className="grid grid-cols-3 gap-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Total Downtime Duration:</h4>
+                      <p className="text-base font-semibold">
+                        {delayEntries[currentEntryIndex].downtimes.reduce((total, dt) => total + (dt.dtInMin || 0), 0)} minutes
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Planned Downtime:</h4>
+                      <p className="text-base font-semibold">
+                        {delayEntries[currentEntryIndex].downtimes
+                          .filter(dt => dt.typeOfDT === 'Planned')
+                          .reduce((total, dt) => total + (dt.dtInMin || 0), 0)} minutes
+                      </p>
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-500 mb-1">Unplanned Downtime:</h4>
+                      <p className="text-base font-semibold">
+                        {delayEntries[currentEntryIndex].downtimes
+                          .filter(dt => dt.typeOfDT === 'Unplanned')
+                          .reduce((total, dt) => total + (dt.dtInMin || 0), 0)} minutes
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Footer with Planned Shutdown Button */}
+              <div className="flex justify-between p-4 border-t border-gray-200">
+                <Button
+                  onClick={() => {
+                    // Pre-fill with current time and set type to Planned
+                    const now = new Date();
+                    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                    const thirtyMinLater = new Date(now.getTime() + 30 * 60000);
+                    const endTime = `${String(thirtyMinLater.getHours()).padStart(2, '0')}:${String(thirtyMinLater.getMinutes()).padStart(2, '0')}`;
+                    
+                    setNewDowntime({
+                      dtStart: currentTime,
+                      dtEnd: endTime,
+                      dtInMin: 30,
+                      typeOfDT: 'Planned',
+                      applicator: applicatorsByDtType['Planned'][0] || '',
+                      delayReason: '',
+                      remarks: ''
+                    });
+                    
+                    setShowPlannedShutdownDialog(true);
+                  }}
+                  className="h-9 bg-amber-500 hover:bg-amber-600 text-white"
+                >
+                  Planned Shutdown
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowDowntimeDetailsDialog(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Planned Shutdown Dialog */}
+      <Dialog open={showPlannedShutdownDialog} onOpenChange={setShowPlannedShutdownDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="text-lg font-semibold">
-              {isEditingDowntime ? "Edit Downtime Entry" : "Add Downtime Entry"}
+              Add Planned Shutdown
             </DialogTitle>
           </DialogHeader>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="dtStart" className="text-sm font-medium">
@@ -1065,79 +1422,18 @@ export default function DowntimeTracker() {
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="dtInMin" className="text-sm font-medium">
-                Duration (minutes)
-              </Label>
-              <Input
-                id="dtInMin"
-                type="number"
-                value={newDowntime.dtInMin}
-                onChange={(e) => handleDowntimeChange('dtInMin', parseInt(e.target.value))}
-                className="h-9"
-                readOnly
-              />
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="typeOfDT" className="text-sm font-medium">
-                Type of Downtime <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={newDowntime.typeOfDT}
-                onValueChange={(value) => {
-                  handleDowntimeChange('typeOfDT', value);
-                  handleDowntimeChange('applicator', '');
-                  handleDowntimeChange('delayReason', '');
-                }}
-                required
-              >
-                <SelectTrigger id="typeOfDT" className="h-9">
-                  <SelectValue placeholder="Select type" />
-                </SelectTrigger>
-                <SelectContent>
-                  {dtTypes.map((type) => (
-                    <SelectItem key={type} value={type}>{type}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
-              <Label htmlFor="applicator" className="text-sm font-medium">
-                Applicator <span className="text-red-500">*</span>
-              </Label>
-              <Select
-                value={newDowntime.applicator}
-                onValueChange={(value) => handleDowntimeChange('applicator', value)}
-                disabled={!newDowntime.typeOfDT}
-                required
-              >
-                <SelectTrigger id="applicator" className="h-9">
-                  <SelectValue placeholder="Select applicator" />
-                </SelectTrigger>
-                <SelectContent>
-                  {newDowntime.typeOfDT && applicatorsByDtType[newDowntime.typeOfDT]?.map((applicator) => (
-                    <SelectItem key={applicator} value={applicator}>{applicator}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-2">
               <Label htmlFor="delayReason" className="text-sm font-medium">
-                Delay Reason <span className="text-red-500">*</span>
+                Reason <span className="text-red-500">*</span>
               </Label>
               <Select
                 value={newDowntime.delayReason}
                 onValueChange={(value) => handleDowntimeChange('delayReason', value)}
-                disabled={!newDowntime.typeOfDT}
-                required
               >
                 <SelectTrigger id="delayReason" className="h-9">
                   <SelectValue placeholder="Select reason" />
                 </SelectTrigger>
                 <SelectContent>
-                  {newDowntime.typeOfDT && delayReasonsByDtType[newDowntime.typeOfDT]?.map((reason) => (
+                  {delayReasonsByDtType["Planned"]?.map((reason) => (
                     <SelectItem key={reason} value={reason}>{reason}</SelectItem>
                   ))}
                 </SelectContent>
@@ -1160,178 +1456,29 @@ export default function DowntimeTracker() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={closeDowntimeDialog}
+                onClick={() => setShowPlannedShutdownDialog(false)}
                 className="h-9"
               >
                 Cancel
               </Button>
               <Button 
-                type="submit"
-                className="h-9 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-                disabled={isSubmitting}
+                type="button"
+                onClick={() => {
+                  // Ensure type is set to Planned
+                  handleDowntimeChange('typeOfDT', 'Planned');
+                  if (!newDowntime.applicator) {
+                    handleDowntimeChange('applicator', applicatorsByDtType['Planned'][0] || '');
+                  }
+                  
+                  handleSubmit();
+                  setShowPlannedShutdownDialog(false);
+                }}
+                className="h-9 bg-amber-500 hover:bg-amber-600 text-white"
               >
-                {isSubmitting ? 'Saving...' : isEditingDowntime ? 'Update' : 'Add'}
+                Add Planned Shutdown
               </Button>
             </DialogFooter>
           </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Downtime Details Dialog */}
-      <Dialog open={showDowntimeDetailsDialog} onOpenChange={setShowDowntimeDetailsDialog}>
-        <DialogContent className="w-full max-w-[900px] p-0 overflow-hidden">
-          <div className="flex justify-between items-center p-6 border-b border-gray-200">
-            <DialogTitle className="text-xl font-bold">
-              Downtime Details for Shift
-            </DialogTitle>
-          </div>
-
-          {currentEntryIndex !== null && (
-            <>
-              {/* Shift Summary */}
-              <div className="bg-gray-50 p-6">
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500 mb-1">Shift Time:</h3>
-                    <p className="text-base font-semibold">
-                      {delayEntries[currentEntryIndex]?.startTime || "--:--"} - {delayEntries[currentEntryIndex]?.endTime || "--:--"}
-                    </p>
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-500 mb-1">Total Downtimes:</h3>
-                    <p className="text-base font-semibold">
-                      {delayEntries[currentEntryIndex]?.downtimes?.length || 0}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Downtime Entries */}
-              <div className="p-6">
-                <h3 className="text-lg font-bold mb-4">Downtime Entries</h3>
-                
-                {delayEntries[currentEntryIndex]?.downtimes?.length > 0 ? (
-                  <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Start Time</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">End Time</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Duration (min)</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Type</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Applicator</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Reason</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Remarks</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {delayEntries[currentEntryIndex].downtimes.map((dt, idx) => (
-                          <tr key={idx} className="border-b border-gray-100">
-                            <td className="py-3 px-3">{dt.dtStart}</td>
-                            <td className="py-3 px-3">{dt.dtEnd}</td>
-                            <td className="py-3 px-3">{dt.dtInMin}</td>
-                            <td className="py-3 px-3">{dt.typeOfDT}</td>
-                            <td className="py-3 px-3">{dt.applicator}</td>
-                            <td className="py-3 px-3">{dt.delayReason}</td>
-                            <td className="py-3 px-3">{dt.remarks || "-"}</td>
-                            <td className="py-3 px-3">
-                              <div className="flex gap-2">
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => editDowntime(currentEntryIndex, idx)}
-                                  className="h-8 text-xs font-medium"
-                                >
-                                  Edit
-                                </Button>
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => deleteDowntime(currentEntryIndex, idx)}
-                                  className="h-8 text-xs font-medium text-red-500 border-red-200 hover:bg-red-50 hover:text-red-600"
-                                >
-                                  Delete
-                                </Button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="py-8 text-center">
-                    <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-100 mb-3">
-                      <Clock className="h-6 w-6 text-gray-400" />
-                    </div>
-                    <p className="text-gray-500 mb-4">No downtime entries found for this delay period.</p>
-                    {currentEntryIndex !== null && !delayEntries[currentEntryIndex].isSaved && (
-                      <Button
-                        onClick={() => {
-                          setShowDowntimeDetailsDialog(false);
-                          openDowntimeDialog(currentEntryIndex);
-                        }}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white"
-                      >
-                        <Plus className="h-4 w-4 mr-1" /> Add Downtime Entry
-                      </Button>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Summary Section */}
-              {delayEntries[currentEntryIndex]?.downtimes?.length > 0 && (
-                <div className="p-6 border-t border-gray-200 bg-gray-50">
-                  <h3 className="text-lg font-bold mb-4">Summary</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500 mb-1">Total Downtime Duration:</h4>
-                      <p className="text-base font-semibold">
-                        {delayEntries[currentEntryIndex].downtimes.reduce((total, dt) => total + (dt.dtInMin || 0), 0)} minutes
-                      </p>
-                    </div>
-                    <div>
-                      <h4 className="text-sm font-medium text-gray-500 mb-1">Most Common Type:</h4>
-                      <p className="text-base font-semibold">
-                        {(() => {
-                          const types = delayEntries[currentEntryIndex].downtimes.map(dt => dt.typeOfDT);
-                          const counts = types.reduce((acc, type) => {
-                            acc[type] = (acc[type] || 0) + 1;
-                            return acc;
-                          }, {});
-                          const mostCommon = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
-                          return mostCommon ? mostCommon[0] : 'None';
-                        })()}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Footer */}
-              <div className="flex justify-end p-4 border-t border-gray-200">
-                {!delayEntries[currentEntryIndex].isSaved && (
-                  <Button
-                    onClick={() => {
-                      setShowDowntimeDetailsDialog(false);
-                      openDowntimeDialog(currentEntryIndex);
-                    }}
-                    className="mr-2 bg-indigo-600 hover:bg-indigo-700 text-white"
-                  >
-                    <Plus className="h-4 w-4 mr-1" /> Add Downtime
-                  </Button>
-                )}
-                <Button
-                  variant="outline"
-                  onClick={() => setShowDowntimeDetailsDialog(false)}
-                >
-                  Close
-                </Button>
-              </div>
-            </>
-          )}
         </DialogContent>
       </Dialog>
     </div>
