@@ -32,12 +32,10 @@ const pageNames: { [key: string]: string } = {
 const menuItems = [
   { name: "Plant Performance", icon: PieChart, path: "/", feature: "kpiDashboard" },
   { name: "Production Dashboard", icon: LayoutDashboard, path: "/dashboard", feature: "productionDashboard" },
-  { name: "Downtime Tracker", icon: Clock, path: "/downtime-tracker", feature: "downtimeTracker" },
   { name: "Data Entry", icon: FileText, path: "/data-entry", feature: "dataEntry" },
+  { name: "Downtime Tracker", icon: Clock, path: "/downtime-tracker", feature: "downtimeTracker" },
   { name: "Servo Monitoring", icon: Activity, path: "/servo-monitoring", feature: "servoMonitoring" },
-  // { name: "Safe Days", icon: Shield, path: "/safe-days", feature: "safeDays" }, 
   { name: "Reports", icon: FileText, path: "/reports", feature: "reports" },
-
 ]
 
 export function Header() {

@@ -16,6 +16,7 @@ export interface AccessRights {
   reports: boolean;
   accountSettings: AccessLevel;
   safeDays: boolean;
+  dataEntry: boolean;
 }
 
 export const roleAccessMap: Record<UserRole, AccessRights> = {
@@ -26,7 +27,8 @@ export const roleAccessMap: Record<UserRole, AccessRights> = {
     servoMonitoring: true,
     reports: true,
     accountSettings: 'read',
-    safeDays: true
+    safeDays: true,
+    dataEntry: true
   },
   operator: {
     kpiDashboard: false,
@@ -35,7 +37,8 @@ export const roleAccessMap: Record<UserRole, AccessRights> = {
     servoMonitoring: true,
     reports: false,
     accountSettings: 'none',
-    safeDays: true
+    safeDays: true,
+    dataEntry: false
   },
   production_manager: {
     kpiDashboard: true,
@@ -44,7 +47,8 @@ export const roleAccessMap: Record<UserRole, AccessRights> = {
     servoMonitoring: true,
     reports: true,
     accountSettings: 'none',
-    safeDays: true
+    safeDays: true,
+    dataEntry: false
   },
   engineer: {
     kpiDashboard: false,
@@ -53,7 +57,8 @@ export const roleAccessMap: Record<UserRole, AccessRights> = {
     servoMonitoring: true,
     reports: true,
     accountSettings: 'none',
-    safeDays: true
+    safeDays: true,
+    dataEntry: false
   },
   admin: {
     kpiDashboard: true,
@@ -62,6 +67,7 @@ export const roleAccessMap: Record<UserRole, AccessRights> = {
     servoMonitoring: true,
     reports: true,
     accountSettings: 'full',
-    safeDays: true
+    safeDays: true,
+    dataEntry: true
   }
 };
