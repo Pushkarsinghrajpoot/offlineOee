@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -17,6 +17,9 @@ import "react-datepicker/dist/react-datepicker.css"
 import { format } from "date-fns"
 import { Plus, Clock, FileText, AlertTriangle, CheckCircle2, Activity, Settings2, Users, BarChart3, Calendar, Clock3, Save, Trash2, Pencil, Eye, X } from "lucide-react"
 
+import { supabase } from "@/lib/supabaseClient"
+import ProductionDataForm from "../components/ProductionDataForm"
+
 // Dropdown options
 const machineWasteReasons = [
   "Material Jam",
@@ -25,14 +28,6 @@ const machineWasteReasons = [
   "Power Failure",
   "Quality Issues",
   "Other"
-]
-
-const dtTypes = [
-  "Planned",
-  "Unplanned",
-  "Maintenance",
-  "Quality Check",
-  "Plant Shutdown"
 ]
 
 const applicatorsByDtType = {
@@ -49,6 +44,14 @@ const delayReasonsByDtType = {
   "Maintenance": ["Preventive Maintenance", "Repair Work", "Part Replacement", "Calibration"],
   "Quality Check": ["Product Testing", "Quality Audit", "Sample Inspection", "Parameter Adjustment"],
   "Plant Shutdown": ["Power Outage", "Facility Maintenance", "Holiday", "Emergency Shutdown"]
+}
+
+const delayHeadsByDtType = {
+  "Planned": ["Production", "Maintenance", "Quality", "Management"],
+  "Unplanned": ["Machine", "Material", "Personnel", "External"],
+  "Maintenance": ["Preventive", "Corrective", "Predictive", "Emergency"],
+  "Quality Check": ["Process", "Product", "Material", "Equipment"],
+  "Plant Shutdown": ["Scheduled", "Emergency", "Regulatory", "Utility"]
 }
 
 // Operator options
@@ -186,99 +189,160 @@ export default function DowntimeTracker() {
   const [currentDowntimeIndex, setCurrentDowntimeIndex] = useState<number | null>(null)
   const [isEditingDowntime, setIsEditingDowntime] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [newDowntime, setNewDowntime] = useState({
+
+  // State variables for delay data from Supabase
+  const [dtTypes, setDtTypes] = useState<string[]>([])
+  const [delayHeads, setDelayHeads] = useState<string[]>([])
+  const [delayReasons, setDelayReasons] = useState<string[]>([])
+
+  // Fetch delay data from Supabase
+  useEffect(() => {
+    // Setup Supabase tables if they don't exist
+    const setup = async () => {
+      await setupSupabaseTables();
+    };
+    
+    setup();
+    
+    const fetchDelayTypes = async () => {
+      try {
+        console.log('Fetching delay types...');
+        const { data, error } = await supabase
+          .from('Delay_reasons')
+          .select('delayType')
+          .order('delayType');
+        
+        console.log('Delay types response:', data, error);
+        
+        if (error) {
+          console.error('Error fetching delay types:', error);
+        } else if (data && data.length > 0) {
+          console.log('Delay types data:', data);
+          // Extract unique delay types
+          const uniqueTypes = [...new Set(data.map(item => item.delayType))];
+          setDtTypes(uniqueTypes);
+        } else {
+          console.log('No delay types found, using default values');
+          setDtTypes(['Planned', 'Unplanned', 'Breakdown', 'Setup', 'Changeover']);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        // Fallback to default values
+        setDtTypes(['Planned', 'Unplanned', 'Breakdown', 'Setup', 'Changeover']);
+      }
+    };
+    
+    const fetchDelayHeads = async () => {
+      try {
+        console.log('Fetching delay heads...');
+        const { data, error } = await supabase
+          .from('Delay_reasons')
+          .select('delayHead')
+          .order('delayHead');
+        
+        console.log('Delay heads response:', data, error);
+        
+        if (error) {
+          console.error('Error fetching delay heads:', error);
+        } else if (data && data.length > 0) {
+          console.log('Delay heads data:', data);
+          // Extract unique delay heads
+          const uniqueHeads = [...new Set(data.map(item => item.delayHead))];
+          setDelayHeads(uniqueHeads);
+        } else {
+          console.log('No delay heads found, using default values');
+          setDelayHeads(['Mechanical', 'Electrical', 'Process', 'Material', 'Operator']);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        // Fallback to default values
+        setDelayHeads(['Mechanical', 'Electrical', 'Process', 'Material', 'Operator']);
+      }
+    };
+    
+    const fetchDelayReasons = async () => {
+      try {
+        console.log('Fetching delay reasons...');
+        const { data, error } = await supabase
+          .from('Delay_reasons')
+          .select('delayDescription')
+          .order('delayDescription');
+        
+        console.log('Delay reasons response:', data, error);
+        
+        if (error) {
+          console.error('Error fetching delay reasons:', error);
+        } else if (data && data.length > 0) {
+          console.log('Delay reasons data:', data);
+          // Extract unique delay descriptions
+          const uniqueDescriptions = [...new Set(data.map(item => item.delayDescription))];
+          setDelayReasons(uniqueDescriptions);
+        } else {
+          console.log('No delay reasons found, using default values');
+          setDelayReasons(['Machine Breakdown', 'Power Failure', 'Material Shortage', 'Quality Issue', 'Scheduled Maintenance']);
+        }
+      } catch (error) {
+        console.error('Error:', error);
+        // Fallback to default values
+        setDelayReasons(['Machine Breakdown', 'Power Failure', 'Material Shortage', 'Quality Issue', 'Scheduled Maintenance']);
+      }
+    };
+    
+    fetchDelayTypes();
+    fetchDelayHeads();
+    fetchDelayReasons();
+  }, []);
+
+  // Define the type for the downtime entry
+  type DowntimeEntry = {
+    dtStart: string;
+    dtEnd: string;
+    dtInMin: number;
+    typeOfDT: string;
+    applicator: string;
+    delayHead: string;
+    delayReason: string;
+    remarks: string;
+    shift: string;
+    isEditable: boolean;
+  };
+
+  // Define the type for delay entries
+  type DelayEntry = {
+    startTime: string;
+    endTime: string;
+    tpc: number;
+    machineWaste: number;
+    finalWaste: number;
+    gpc: number;
+    wasteReason: string;
+    downtimes: DowntimeEntry[];
+    isSaved: boolean;
+  };
+
+  const [newDowntime, setNewDowntime] = useState<DowntimeEntry>({
     dtStart: "",
     dtEnd: "",
     dtInMin: 0,
     typeOfDT: "",
     applicator: "",
+    delayHead: "",
     delayReason: "",
-    remarks: ""
+    remarks: "",
+    shift: "",
+    isEditable: true  // Adding a new property to track if the entry is editable
   })
-  const [delayEntries, setDelayEntries] = useState([
+  const [delayEntries, setDelayEntries] = useState<DelayEntry[]>([
     {
-      startTime: "07:00",
-      endTime: "08:00",
-      tpc: 1000,
-      machineWaste: 20,
-      finalWaste: 10,
-      gpc: 100,
-      wasteReason: "Material Jam",
-      downtimes: [
-        {
-          dtStart: "07:15",
-          dtEnd: "07:30",
-          dtInMin: 15,
-          typeOfDT: "Unplanned",
-          applicator: "Maintenance Team",
-          delayReason: "Machine Breakdown",
-          remarks: "Unexpected issue with conveyor belt"
-        }
-      ],
-      isSaved: true
-    },
-    {
-      startTime: "08:00",
-      endTime: "09:00",
-      tpc: 1200,
-      machineWaste: 15,
-      finalWaste: 8,
-      gpc: 120,
-      wasteReason: "Setup Issues",
-      downtimes: [
-        {
-          dtStart: "08:10",
-          dtEnd: "08:20",
-          dtInMin: 10,
-          typeOfDT: "Planned",
-          applicator: "Production Manager",
-          delayReason: "Scheduled Maintenance",
-          remarks: "Regular check"
-        }
-      ],
-      isSaved: true
-    },
-    {
-      startTime: "15:00",
-      endTime: "16:00",
-      tpc: 950,
-      machineWaste: 25,
-      finalWaste: 12,
-      gpc: 95,
-      wasteReason: "Power Failure",
-      downtimes: [
-        {
-          dtStart: "15:20",
-          dtEnd: "15:45",
-          dtInMin: 25,
-          typeOfDT: "Unplanned",
-          applicator: "Maintenance Team",
-          delayReason: "Power Failure",
-          remarks: "Unexpected power outage"
-        }
-      ],
-      isSaved: true
-    },
-    {
-      startTime: "23:00",
-      endTime: "00:00",
-      tpc: 1100,
-      machineWaste: 18,
-      finalWaste: 9,
-      gpc: 110,
-      wasteReason: "Material Jam",
-      downtimes: [
-        {
-          dtStart: "23:30",
-          dtEnd: "23:45",
-          dtInMin: 15,
-          typeOfDT: "Maintenance",
-          applicator: "Maintenance Team",
-          delayReason: "Repair Work",
-          remarks: "Quick fix for material feed system"
-        }
-      ],
-      isSaved: true
+      startTime: "",
+      endTime: "",
+      tpc: 0,
+      machineWaste: 0,
+      finalWaste: 0,
+      gpc: 0,
+      wasteReason: "",
+      downtimes: [],
+      isSaved: false
     }
   ])
   const [metrics, setMetrics] = useState({
@@ -298,53 +362,80 @@ export default function DowntimeTracker() {
   const [editMode, setEditMode] = useState<number | null>(null)
 
   const resetDowntimeForm = useCallback(() => {
-    // Get current time in HH:MM format
+    // Get the current time
     const now = new Date();
-    const currentHour = now.getHours().toString().padStart(2, '0');
-    const currentMinute = now.getMinutes().toString().padStart(2, '0');
-    const currentTime = `${currentHour}:${currentMinute}`;
+    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
     
-    // Calculate end time (15 minutes later)
-    const endTime = new Date(now.getTime() + 15 * 60000);
-    const endHour = endTime.getHours().toString().padStart(2, '0');
-    const endMinute = endTime.getMinutes().toString().padStart(2, '0');
-    const endTimeStr = `${endHour}:${endMinute}`;
+    // Calculate end time (30 minutes later)
+    const thirtyMinLater = new Date(now.getTime() + 30 * 60000);
+    const endTime = `${String(thirtyMinLater.getHours()).padStart(2, '0')}:${String(thirtyMinLater.getMinutes()).padStart(2, '0')}`;
     
+    // Reset the form with default values
     setNewDowntime({
       dtStart: currentTime,
-      dtEnd: endTimeStr,
-      dtInMin: 15,
-      typeOfDT: "Unplanned",
+      dtEnd: endTime,
+      dtInMin: 30,
+      typeOfDT: "",
       applicator: "",
+      delayHead: "",
       delayReason: "",
-      remarks: ""
-    })
-    setIsEditingDowntime(false)
-    setCurrentDowntimeIndex(null)
-    setIsSubmitting(false)
-  }, [])
+      remarks: "",
+      shift: "",
+      isEditable: true
+    });
+    
+    setIsEditingDowntime(false);
+    setCurrentDowntimeIndex(null);
+    setSelectedDelayHead("");
+  }, []);
 
   const handleDowntimeChange = useCallback((field, value) => {
     setNewDowntime(prev => {
       const updated = { ...prev, [field]: value }
       
-      if ((field === 'dtStart' || field === 'dtEnd') && updated.dtStart && updated.dtEnd) {
-        const [startHours, startMinutes] = updated.dtStart.toString().split(':').map(Number)
-        const [endHours, endMinutes] = updated.dtEnd.toString().split(':').map(Number)
-        
-        let startTotalMinutes = startHours * 60 + startMinutes
-        let endTotalMinutes = endHours * 60 + endMinutes
-        
-        if (endTotalMinutes < startTotalMinutes) {
-          endTotalMinutes += 24 * 60
-        }
-        
-        updated.dtInMin = endTotalMinutes - startTotalMinutes
+      // If type changes, reset delay head and reason
+      if (field === 'typeOfDT') {
+        updated.applicator = '';
+        updated.delayReason = '';
       }
       
-      return updated
-    })
-  }, [])
+      // If delay head changes, reset reason
+      if (field === 'delayHead') {
+        updated.delayReason = '';
+      }
+      
+      // Calculate end time based on start time and duration
+      if (field === 'dtStart' || field === 'dtInMin') {
+        if (updated.dtStart && updated.dtInMin) {
+          const [startHours, startMinutes] = updated.dtStart.toString().split(':').map(Number);
+          const startTotalMinutes = startHours * 60 + startMinutes;
+          const endTotalMinutes = startTotalMinutes + updated.dtInMin;
+          
+          const endHours = Math.floor(endTotalMinutes / 60) % 24;
+          const endMinutes = endTotalMinutes % 60;
+          
+          updated.dtEnd = `${endHours.toString().padStart(2, '0')}:${endMinutes.toString().padStart(2, '0')}`;
+        }
+      }
+      
+      // If manually editing end time, recalculate duration
+      if (field === 'dtEnd' && updated.dtStart) {
+        const [startHours, startMinutes] = updated.dtStart.toString().split(':').map(Number);
+        const [endHours, endMinutes] = updated.dtEnd.toString().split(':').map(Number);
+        
+        let startTotalMinutes = startHours * 60 + startMinutes;
+        let endTotalMinutes = endHours * 60 + endMinutes;
+        
+        if (endTotalMinutes < startTotalMinutes) {
+          endTotalMinutes += 24 * 60;
+        }
+        
+        updated.dtInMin = endTotalMinutes - startTotalMinutes;
+      }
+      
+      return updated;
+    });
+  }, []);
 
   const closeDowntimeDialog = useCallback(() => {
     setShowDowntimeDialog(false)
@@ -402,7 +493,8 @@ export default function DowntimeTracker() {
 
       setDelayEntries(prev => {
         const updated = [...prev]
-        const newEntry = { ...newDowntime }
+        // Mark the entry as non-editable when saving
+        const newEntry = { ...newDowntime, isEditable: false }
         
         if (isEditingDowntime && currentDowntimeIndex !== null) {
           updated[currentEntryIndex] = {
@@ -510,8 +602,19 @@ export default function DowntimeTracker() {
 
   const openDowntimeDetails = useCallback((index) => {
     setCurrentEntryIndex(index)
+    // Initialize with empty downtimes array if not already present
+    if (!delayEntries[index].downtimes) {
+      setDelayEntries(prev => {
+        const updated = [...prev];
+        updated[index] = {
+          ...updated[index],
+          downtimes: []
+        };
+        return updated;
+      });
+    }
     setShowDowntimeDetailsDialog(true)
-  }, [])
+  }, [delayEntries])
 
   const getShiftFromTime = useCallback((time) => {
     const hour = parseInt(time.split(':')[0]);
@@ -521,7 +624,7 @@ export default function DowntimeTracker() {
   }, []);
 
   const handleAddNewEntry = useCallback(() => {
-    const newEntry = {
+    const newEntry: DelayEntry = {
       startTime: "",
       endTime: "",
       tpc: 0,
@@ -557,8 +660,11 @@ export default function DowntimeTracker() {
       dtInMin: 30,
       typeOfDT: "Planned",
       applicator: "",
+      delayHead: "",
       delayReason: "",
-      remarks: ""
+      remarks: "",
+      shift: "",
+      isEditable: true
     });
     
     setShowDowntimeDialog(true);
@@ -566,24 +672,66 @@ export default function DowntimeTracker() {
 
   const [editingDowntimeIndex, setEditingDowntimeIndex] = useState<number | null>(null);
 
-  const editDowntimeReason = (entryIndex: number, downtimeIndex: number) => {
-    const downtime = delayEntries[entryIndex].downtimes[downtimeIndex];
-    setNewDowntime({
-      ...downtime,
-      dtInMin: downtime.dtInMin || 0
-    });
-    setEditingDowntimeIndex(downtimeIndex);
-  };
+  const [selectedDelayHead, setSelectedDelayHead] = useState<string>("");
 
-  const saveDowntimeReason = (entryIndex: number, downtimeIndex: number) => {
-    const updatedEntries = [...delayEntries];
-    updatedEntries[entryIndex].downtimes[downtimeIndex] = {
-      ...updatedEntries[entryIndex].downtimes[downtimeIndex],
-      delayReason: newDowntime.delayReason
-    };
-    setDelayEntries(updatedEntries);
+  const editDowntimeReason = useCallback((entryIndex: number, downtimeIndex: number) => {
+    if (!delayEntries[entryIndex] || !delayEntries[entryIndex].downtimes || !delayEntries[entryIndex].downtimes[downtimeIndex]) {
+      return;
+    }
+    
+    const downtime = delayEntries[entryIndex].downtimes[downtimeIndex];
+    
+    // Only allow editing if the downtime is marked as editable
+    if (!downtime.isEditable) {
+      return;
+    }
+    
+    setCurrentEntryIndex(entryIndex);
+    setCurrentDowntimeIndex(downtimeIndex);
+    setEditingDowntimeIndex(downtimeIndex);
+    setIsEditingDowntime(true);
+    
+    setNewDowntime({
+      dtStart: downtime.dtStart,
+      dtEnd: downtime.dtEnd,
+      dtInMin: downtime.dtInMin,
+      typeOfDT: downtime.typeOfDT,
+      applicator: downtime.applicator,
+      delayHead: downtime.delayHead || '',
+      delayReason: downtime.delayReason,
+      remarks: downtime.remarks || '',
+      shift: downtime.shift,
+      isEditable: downtime.isEditable
+    });
+    
+    // Set the selected delay head for the dropdown
+    setSelectedDelayHead(downtime.delayHead || '');
+  }, [delayEntries]);
+
+  const saveDowntimeReason = useCallback((entryIndex: number, downtimeIndex: number) => {
+    setDelayEntries(prev => {
+      const updated = [...prev];
+      
+      // Mark the entry as non-editable when saving
+      const updatedDowntime = { 
+        ...newDowntime,
+        isEditable: false 
+      };
+      
+      updated[entryIndex] = {
+        ...updated[entryIndex],
+        downtimes: updated[entryIndex].downtimes.map((dt, idx) => 
+          idx === downtimeIndex ? updatedDowntime : dt
+        )
+      };
+      
+      return updated;
+    });
+    
     setEditingDowntimeIndex(null);
-  };
+    setIsEditingDowntime(false);
+    resetDowntimeForm();
+  }, [newDowntime, resetDowntimeForm]);
 
   const [showPlannedShutdownDialog, setShowPlannedShutdownDialog] = useState(false);
 
@@ -611,246 +759,8 @@ export default function DowntimeTracker() {
 
   return (
     <div className="space-y-4">
+      <ProductionDataForm />
       {/* Combined Header - More Compact */}
-      <Card className="line-details-card mb-3 overflow-hidden border-0 shadow-lg sticky top-0 ">
-        <div className="bg-gradient-to-r from-blue-600 to-purple-700 p-2">
-          <h2 className="text-lg font-bold text-white">Production Line Details</h2>
-        </div>
-        <CardContent className="p-3">
-          <div className="grid grid-cols-7 gap-2 mb-2">
-            {/* Row 1 */}
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Calendar className="h-3 w-3 text-blue-500" />
-                Line
-              </Label>
-              <Select value={selectedLine} onValueChange={setSelectedLine}>
-                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Line 1">Line 1</SelectItem>
-                  <SelectItem value="Line 2">Line 2</SelectItem>
-                  <SelectItem value="Line 3">Line 3</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Calendar className="h-3 w-3 text-blue-500" />
-                Date
-              </Label>
-              <div className="relative">
-                <DatePicker
-                  selected={selectedDate}
-                  onChange={(date: Date) => setSelectedDate(date)}
-                  dateFormat="MM/dd/yyyy"
-                  className="w-full h-8 text-sm rounded-md border border-gray-300 px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200 pl-7"
-                />
-                <Calendar className="h-3 w-3 text-blue-500 absolute left-2 top-2.5" />
-              </div>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Clock3 className="h-3 w-3 text-blue-500" />
-                Start Time
-              </Label>
-              <div className="relative">
-                <Input
-                  type="time"
-                  value={format(shiftStartTime, 'HH:mm')}
-                  onChange={(e) => setShiftStartTime(new Date('1970-01-01T' + e.target.value + ':00'))}
-                  className="w-full h-8 text-sm rounded-md border border-gray-300 pl-7 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                />
-                <Clock3 className="h-3 w-3 text-blue-500 absolute left-2 top-2.5" />
-              </div>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Clock3 className="h-3 w-3 text-blue-500" />
-                End Time
-              </Label>
-              <div className="relative">
-                <Input
-                  type="time"
-                  value={format(shiftEndTime, 'HH:mm')}
-                  onChange={(e) => setShiftEndTime(new Date('1970-01-01T' + e.target.value + ':00'))}
-                  className="w-full h-8 text-sm rounded-md border border-gray-300 pl-7 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
-                />
-                <Clock3 className="h-3 w-3 text-blue-500 absolute left-2 top-2.5" />
-              </div>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Users className="h-3 w-3 text-blue-500" />
-                Shift
-              </Label>
-              <Select value={selectedShift} onValueChange={setSelectedShift}>
-                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
-                  <SelectValue placeholder="Select shift" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="A">Shift A</SelectItem>
-                  <SelectItem value="B">Shift B</SelectItem>
-                  <SelectItem value="C">Shift C</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <FileText className="h-3 w-3 text-blue-500" />
-                Production Order
-              </Label>
-              <Input
-                value={lineDetails.productionOrder}
-                onChange={(e) => setLineDetails({ ...lineDetails, productionOrder: e.target.value })}
-                className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <FileText className="h-3 w-3 text-blue-500" />
-                Production Code
-              </Label>
-              <Input
-                value={lineDetails.productionCode}
-                onChange={(e) => setLineDetails({ ...lineDetails, productionCode: e.target.value })}
-                className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-          </div>
-          
-          {/* Row 2 */}
-          <div className="grid grid-cols-7 gap-2">
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <FileText className="h-3 w-3 text-blue-500" />
-                Product Description
-              </Label>
-              <Input
-                value={lineDetails.productDescription}
-                onChange={(e) => setLineDetails({ ...lineDetails, productDescription: e.target.value })}
-                className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent"
-              />
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Users className="h-3 w-3 text-blue-500" />
-                Main Operator
-              </Label>
-              <Select
-                value={lineDetails.mainOperator}
-                onValueChange={(value) => setLineDetails({ ...lineDetails, mainOperator: value })}
-              >
-                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {operators.map((operator) => (
-                    <SelectItem key={operator} value={operator}>{operator}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Users className="h-3 w-3 text-blue-500" />
-                Assistant
-              </Label>
-              <Select
-                value={lineDetails.assistantOperator}
-                onValueChange={(value) => setLineDetails({ ...lineDetails, assistantOperator: value })}
-              >
-                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {operators.map((operator) => (
-                    <SelectItem key={operator} value={operator}>{operator}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Users className="h-3 w-3 text-blue-500" />
-                Shift Incharge
-              </Label>
-              <Select
-                value={lineDetails.shiftIncharge}
-                onValueChange={(value) => setLineDetails({ ...lineDetails, shiftIncharge: value })}
-              >
-                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {operators.map((operator) => (
-                    <SelectItem key={operator} value={operator}>{operator}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-1">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Settings2 className="h-3 w-3 text-blue-500" />
-                RM1
-              </Label>
-              <Select
-                value={lineDetails.rm1}
-                onValueChange={(value) => setLineDetails({ ...lineDetails, rm1: value })}
-              >
-                <SelectTrigger className="w-full h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rmOptions.map((rm) => (
-                    <SelectItem key={rm} value={rm}>{rm}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div className="space-y-1 flex flex-col">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Settings2 className="h-3 w-3 text-blue-500" />
-                RM2
-              </Label>
-              <div className="flex gap-1 h-8">
-                <Select
-                  value={lineDetails.rm2}
-                  onValueChange={(value) => setLineDetails({ ...lineDetails, rm2: value })}
-                >
-                  <SelectTrigger className="flex-1 h-8 text-sm transition-all duration-200 focus:ring-1 focus:ring-blue-500 focus:border-transparent">
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {rmOptions.map((rm) => (
-                      <SelectItem key={rm} value={rm}>{rm}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button 
-                  variant="default" 
-                  className="h-8 px-2 bg-gradient-to-r from-blue-600 to-purple-700 hover:from-blue-700 hover:to-purple-800 text-white text-xs rounded-md shadow-sm transition-all duration-300"
-                  onClick={handleUpdate}
-                >
-                  Update
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Metrics */}
       <Card className="metrics-card mb-3 overflow-hidden border-0 shadow-lg sticky top-20">
@@ -970,7 +880,7 @@ export default function DowntimeTracker() {
         </div>
         <div className="relative max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 bg-white sticky top-75">
           <table className="w-full border-collapse">
-            <thead className="sticky top-0 z-20 bg-gray-100 shadow-sm">
+            <thead className="sticky top-0 bg-white z-10">
               <tr>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Start</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">End</th>
@@ -1067,11 +977,7 @@ export default function DowntimeTracker() {
                         size="sm"
                         onClick={() => openDowntimeDetails(index)}
                         disabled={entry.isSaved && editMode !== index}
-                        className={`h-8 text-xs px-2 py-0 ${
-                          entry.downtimes.length === 0 
-                            ? 'bg-red-500 text-white hover:bg-red-600 border-red-500' 
-                            : 'bg-green-500 text-white hover:bg-green-600 border-green-500 blink-green'
-                        } transition-all duration-200 w-full`}
+                        className={`h-8 text-xs bg-green-500 text-white hover:bg-green-600 border-green-500 blink-green transition-all duration-200 w-full`}
                       >
                         {entry.downtimes.length === 0 
                           ? 'Downtime' 
@@ -1146,25 +1052,18 @@ export default function DowntimeTracker() {
 
       {/* Downtime Details Dialog */}
       <Dialog open={showDowntimeDetailsDialog} onOpenChange={setShowDowntimeDetailsDialog}>
-        <DialogContent className="w-full max-w-[900px] p-0 overflow-hidden">
-          <div className="flex justify-between items-center p-6 border-b border-gray-200">
-            <DialogTitle className="text-xl font-bold">
-              Downtime Details for Shift
-            </DialogTitle>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowDowntimeDetailsDialog(false)}
-              className="h-8 w-8 p-0 rounded-full"
-            >
-            </Button>
-          </div>
-
+        <DialogContent className="max-w-[950px] max-h-[85vh] overflow-hidden flex flex-col">
+          <DialogHeader className="pb-2">
+            <DialogTitle className="text-lg">Downtime Details</DialogTitle>
+            <DialogDescription className="text-xs">
+              View and manage downtime details for this delay period.
+            </DialogDescription>
+          </DialogHeader>
           {currentEntryIndex !== null && (
             <>
               {/* Shift Summary */}
-              <div className="bg-gray-50 p-6">
-                <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 p-3">
+                <div className="grid grid-cols-2 gap-3">
                   <div>
                     <h3 className="text-sm font-medium text-gray-500 mb-1">Shift Time:</h3>
                     <p className="text-base font-semibold">
@@ -1185,6 +1084,53 @@ export default function DowntimeTracker() {
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-lg font-bold">Downtime Entries</h3>
                   <div className="flex gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        // Reset the form and add a new editable entry
+                        resetDowntimeForm();
+                        setIsEditingDowntime(false);
+                        setCurrentDowntimeIndex(null);
+                        
+                        // Add a new editable downtime entry to the current entry's downtimes
+                        if (currentEntryIndex !== null) {
+                          setDelayEntries(prev => {
+                            const updated = [...prev];
+                            const now = new Date();
+                            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+                            const thirtyMinLater = new Date(now.getTime() + 30 * 60000);
+                            const endTime = `${String(thirtyMinLater.getHours()).padStart(2, '0')}:${String(thirtyMinLater.getMinutes()).padStart(2, '0')}`;
+                            
+                            // Get shift from production line details
+                            const shift = updated[currentEntryIndex].shift || "";
+                            
+                            updated[currentEntryIndex] = {
+                              ...updated[currentEntryIndex],
+                              downtimes: [
+                                ...updated[currentEntryIndex].downtimes,
+                                {
+                                  dtStart: currentTime,
+                                  dtEnd: endTime,
+                                  dtInMin: 30,
+                                  typeOfDT: "",
+                                  applicator: "",
+                                  delayHead: "",
+                                  delayReason: "",
+                                  remarks: "",
+                                  shift: shift,
+                                  isEditable: true
+                                }
+                              ]
+                            };
+                            return updated;
+                          });
+                        }
+                      }}
+                      className="h-8 text-xs bg-green-500 text-white hover:bg-green-600"
+                    >
+                      <Plus className="h-3.5 w-3.5 mr-1" /> Add Downtime
+                    </Button>
                     <Button
                       variant="outline"
                       size="sm"
@@ -1222,16 +1168,17 @@ export default function DowntimeTracker() {
                 </div>
                 
                 {delayEntries[currentEntryIndex]?.downtimes?.length > 0 ? (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-y-auto" style={{ maxHeight: "180px" }}>
                     <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b border-gray-200">
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Start Time</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">End Time</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Duration (min)</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Type</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Reason</th>
-                          <th className="text-left py-2 px-3 text-sm font-medium text-gray-500">Actions</th>
+                      <thead className="sticky top-0 bg-white z-10">
+                        <tr className="bg-gray-50 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          <th className="py-2 px-2">Start Time</th>
+                          <th className="py-2 px-2">Duration (min)</th>
+                          <th className="py-2 px-2">End Time</th>
+                          <th className="py-2 px-2">Delay Type</th>
+                          <th className="py-2 px-2">Delay Head</th>
+                          <th className="py-2 px-2">Delay Description</th>
+                          <th className="py-2 px-2 text-right">Actions</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1243,24 +1190,138 @@ export default function DowntimeTracker() {
                               item => item === dt
                             );
                             return (
-                              <tr key={idx} className={`border-b border-gray-100 ${dt.typeOfDT === 'Planned' ? 'bg-amber-50' : ''}`}>
-                                <td className="py-3 px-3">{dt.dtStart}</td>
-                                <td className="py-3 px-3">{dt.dtEnd}</td>
-                                <td className="py-3 px-3">{dt.dtInMin}</td>
-                                <td className="py-3 px-3">
-                                  <span className={`px-2 py-1 rounded-full text-xs ${
-                                    dt.typeOfDT === 'Planned' 
-                                      ? 'bg-amber-100 text-amber-800' 
-                                      : 'bg-red-100 text-red-800'
-                                  }`}>
-                                    {dt.typeOfDT}
-                                  </span>
+                              <tr key={idx} className="border-b border-gray-100">
+                                <td className="py-2 px-2">
+                                  {dt.isEditable ? (
+                                    <Input
+                                      type="time"
+                                      value={dt.dtStart}
+                                      onChange={(e) => {
+                                        setDelayEntries(prev => {
+                                          const updated = [...prev];
+                                          updated[currentEntryIndex].downtimes[originalIndex] = {
+                                            ...updated[currentEntryIndex].downtimes[originalIndex],
+                                            dtStart: e.target.value
+                                          };
+                                          return updated;
+                                        });
+                                      }}
+                                      className="h-8 text-xs w-full"
+                                    />
+                                  ) : (
+                                    dt.dtStart
+                                  )}
                                 </td>
-                                <td className="py-3 px-3">
-                                  {editingDowntimeIndex === originalIndex ? (
+                                <td className="py-2 px-2">
+                                  {dt.isEditable ? (
+                                    <Input
+                                      type="number"
+                                      value={dt.dtInMin}
+                                      onChange={(e) => {
+                                        const duration = parseInt(e.target.value);
+                                        if (isNaN(duration) || duration <= 0) return;
+                                        
+                                        // Calculate end time based on start time and duration
+                                        const [startHours, startMinutes] = dt.dtStart.split(':').map(Number);
+                                        const startTotalMinutes = startHours * 60 + startMinutes;
+                                        const endTotalMinutes = startTotalMinutes + duration;
+                                        
+                                        const endHours = Math.floor(endTotalMinutes / 60) % 24;
+                                        const endMinutes = endTotalMinutes % 60;
+                                        const endTime = `${String(endHours).padStart(2, '0')}:${String(endMinutes).padStart(2, '0')}`;
+                                        
+                                        setDelayEntries(prev => {
+                                          const updated = [...prev];
+                                          updated[currentEntryIndex].downtimes[originalIndex] = {
+                                            ...updated[currentEntryIndex].downtimes[originalIndex],
+                                            dtInMin: duration,
+                                            dtEnd: endTime
+                                          };
+                                          return updated;
+                                        });
+                                      }}
+                                      className="h-8 text-xs w-full"
+                                      min="1"
+                                    />
+                                  ) : (
+                                    dt.dtInMin
+                                  )}
+                                </td>
+                                <td className="py-2 px-2">
+                                  {dt.dtEnd}
+                                </td>
+                                <td className="py-2 px-2">
+                                  {dt.isEditable ? (
                                     <Select
-                                      value={newDowntime.delayReason}
-                                      onValueChange={(value) => handleDowntimeChange('delayReason', value)}
+                                      value={dt.typeOfDT}
+                                      onValueChange={(value) => {
+                                        setDelayEntries(prev => {
+                                          const updated = [...prev];
+                                          updated[currentEntryIndex].downtimes[originalIndex] = {
+                                            ...updated[currentEntryIndex].downtimes[originalIndex],
+                                            typeOfDT: value
+                                          };
+                                          return updated;
+                                        });
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Select type" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {dtTypes.map((type) => (
+                                          <SelectItem key={type} value={type}>{type}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    dt.typeOfDT
+                                  )}
+                                </td>
+                                <td className="py-2 px-2">
+                                  {dt.isEditable ? (
+                                    <Select
+                                      value={dt.delayHead}
+                                      onValueChange={(value) => {
+                                        setDelayEntries(prev => {
+                                          const updated = [...prev];
+                                          updated[currentEntryIndex].downtimes[originalIndex] = {
+                                            ...updated[currentEntryIndex].downtimes[originalIndex],
+                                            delayHead: value
+                                          };
+                                          return updated;
+                                        });
+                                      }}
+                                      disabled={!dt.typeOfDT}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Select head" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {dt.typeOfDT && delayHeadsByDtType[dt.typeOfDT]?.map((head) => (
+                                          <SelectItem key={head} value={head}>{head}</SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  ) : (
+                                    dt.delayHead || "-"
+                                  )}
+                                </td>
+                                <td className="py-2 px-2">
+                                  {dt.isEditable ? (
+                                    <Select
+                                      value={dt.delayReason}
+                                      onValueChange={(value) => {
+                                        setDelayEntries(prev => {
+                                          const updated = [...prev];
+                                          updated[currentEntryIndex].downtimes[originalIndex] = {
+                                            ...updated[currentEntryIndex].downtimes[originalIndex],
+                                            delayReason: value
+                                          };
+                                          return updated;
+                                        });
+                                      }}
+                                      disabled={!dt.typeOfDT}
                                     >
                                       <SelectTrigger className="h-8 text-xs">
                                         <SelectValue placeholder="Select reason" />
@@ -1275,25 +1336,68 @@ export default function DowntimeTracker() {
                                     dt.delayReason || "-"
                                   )}
                                 </td>
-                                <td className="py-3 px-3">
-                                  <div className="flex gap-2">
-                                    {editingDowntimeIndex === originalIndex ? (
-                                      <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() => saveDowntimeReason(currentEntryIndex, originalIndex)}
-                                        className="h-8 text-xs font-medium bg-green-500 text-white hover:bg-green-600"
-                                      >
-                                        Save
-                                      </Button>
+                                <td className="py-2 px-2">
+                                  <div className="flex gap-1 justify-end">
+                                    {dt.isEditable ? (
+                                      <>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            // Validate the entry
+                                            if (!dt.dtStart || !dt.dtInMin || !dt.typeOfDT || !dt.delayHead || !dt.delayReason) {
+                                              alert('Please fill in all required fields.');
+                                              return;
+                                            }
+
+                                            // Save the entry and make it non-editable
+                                            setDelayEntries(prev => {
+                                              const updated = [...prev];
+                                              updated[currentEntryIndex].downtimes[originalIndex] = {
+                                                ...updated[currentEntryIndex].downtimes[originalIndex],
+                                                isEditable: false
+                                              };
+                                              return updated;
+                                            });
+                                          }}
+                                          className="h-7 w-7 p-0"
+                                        >
+                                          <Save className="h-3.5 w-3.5" />
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() => {
+                                            // Delete the entry
+                                            setDelayEntries(prev => {
+                                              const updated = [...prev];
+                                              updated[currentEntryIndex].downtimes = updated[currentEntryIndex].downtimes.filter((_, i) => i !== originalIndex);
+                                              return updated;
+                                            });
+                                          }}
+                                          className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                                        >
+                                          <Trash2 className="h-3.5 w-3.5" />
+                                        </Button>
+                                      </>
                                     ) : (
                                       <Button
                                         variant="outline"
                                         size="sm"
-                                        onClick={() => editDowntimeReason(currentEntryIndex, originalIndex)}
-                                        className="h-8 text-xs font-medium"
+                                        onClick={() => {
+                                          // Make the entry editable again
+                                          setDelayEntries(prev => {
+                                            const updated = [...prev];
+                                            updated[currentEntryIndex].downtimes[originalIndex] = {
+                                              ...updated[currentEntryIndex].downtimes[originalIndex],
+                                              isEditable: true
+                                            };
+                                            return updated;
+                                          });
+                                        }}
+                                        className="h-7 w-7 p-0"
                                       >
-                                        Edit Reason
+                                        <Pencil className="h-3.5 w-3.5" />
                                       </Button>
                                     )}
                                   </div>
@@ -1351,18 +1455,27 @@ export default function DowntimeTracker() {
                   onClick={() => {
                     // Pre-fill with current time and set type to Planned
                     const now = new Date();
-                    const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-                    const thirtyMinLater = new Date(now.getTime() + 30 * 60000);
-                    const endTime = `${String(thirtyMinLater.getHours()).padStart(2, '0')}:${String(thirtyMinLater.getMinutes()).padStart(2, '0')}`;
+                    const currentHour = now.getHours().toString().padStart(2, '0');
+                    const currentMinute = now.getMinutes().toString().padStart(2, '0');
+                    const currentTime = `${currentHour}:${currentMinute}`;
+                    
+                    // Calculate end time (30 minutes later for planned shutdown)
+                    const endTime = new Date(now.getTime() + 30 * 60000);
+                    const endHour = endTime.getHours().toString().padStart(2, '0');
+                    const endMinute = endTime.getMinutes().toString().padStart(2, '0');
+                    const endTimeStr = `${endHour}:${endMinute}`;
                     
                     setNewDowntime({
                       dtStart: currentTime,
-                      dtEnd: endTime,
+                      dtEnd: endTimeStr,
                       dtInMin: 30,
-                      typeOfDT: 'Planned',
-                      applicator: applicatorsByDtType['Planned'][0] || '',
-                      delayReason: '',
-                      remarks: ''
+                      typeOfDT: "Planned",
+                      applicator: "",
+                      delayHead: "",
+                      delayReason: "",
+                      remarks: "",
+                      shift: "",
+                      isEditable: true
                     });
                     
                     setShowPlannedShutdownDialog(true);

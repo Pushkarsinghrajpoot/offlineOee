@@ -23,6 +23,7 @@ const pageNames: { [key: string]: string } = {
   "/reports": "Reports",
   "/servo-monitoring": "Servo Monitoring",
   "/downtime-tracker": "Downtime Tracker",
+  "/data-entry": "Data Entry",
   // "/safe-days": "Safe Days",
   "/settings": "Settings",
   "/login": "Login"
@@ -32,9 +33,11 @@ const menuItems = [
   { name: "Plant Performance", icon: PieChart, path: "/", feature: "kpiDashboard" },
   { name: "Production Dashboard", icon: LayoutDashboard, path: "/dashboard", feature: "productionDashboard" },
   { name: "Downtime Tracker", icon: Clock, path: "/downtime-tracker", feature: "downtimeTracker" },
+  { name: "Data Entry", icon: FileText, path: "/data-entry", feature: "dataEntry" },
   { name: "Servo Monitoring", icon: Activity, path: "/servo-monitoring", feature: "servoMonitoring" },
   // { name: "Safe Days", icon: Shield, path: "/safe-days", feature: "safeDays" }, 
   { name: "Reports", icon: FileText, path: "/reports", feature: "reports" },
+
 ]
 
 export function Header() {
