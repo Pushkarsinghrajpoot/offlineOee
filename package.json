@@ -43,6 +43,7 @@
     "@types/react": "latest",
     "@types/react-datepicker": "^6.2.0",
     "@types/react-dom": "latest",
+    "@types/uuid": "^10.0.0",
     "apexcharts": "^4.5.0",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
@@ -70,6 +71,7 @@
     "sonner": "^1.7.1",
     "tailwind-merge": "^2.5.5",
     "tailwindcss-animate": "^1.0.7",
+    "uuid": "^11.1.0",
     "vaul": "^0.9.6",
     "xlsx": "^0.18.5",
     "zod": "^3.24.1"

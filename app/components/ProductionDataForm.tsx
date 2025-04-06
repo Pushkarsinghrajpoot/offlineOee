@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { supabase } from '@/lib/supabaseClient';
 import { Database } from '@/lib/database.types';
+import { toast } from 'sonner';
 import { FileText, Factory, Ruler, Package, Clock, User, Users, UserCircle, UserCircle2, ShieldCheck, ClipboardCheck, Save } from 'lucide-react';
 
 type Operator = Database['public']['Tables']['operator']['Row'];
@@ -15,12 +16,17 @@ type Product = Database['public']['Tables']['product_details']['Row'];
 type MachineSpeed = Database['public']['Tables']['machine_speed']['Row'];
 type ShiftTime = Database['public']['Tables']['shift_time']['Row'];
 
-export default function ProductionDataForm() {
+interface ProductionDataFormProps {
+  onProductionDataCreated?: (id: string) => void;
+}
+
+export default function ProductionDataForm({ onProductionDataCreated }: ProductionDataFormProps) {
   const [operators, setOperators] = useState<Operator[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [machineSpeeds, setMachineSpeeds] = useState<MachineSpeed[]>([]);
   const [shifts, setShifts] = useState<ShiftTime[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     line: '',
     size: '',
@@ -43,30 +49,66 @@ export default function ProductionDataForm() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [operatorsData, productsData, machineSpeedsData, shiftsData] = await Promise.all([
-        supabase.from('operator').select('*').order('operator_name'),
-        supabase.from('product_details').select('*').order('product_code'),
-        supabase.from('machine_speed').select('*').order('size'),
-        supabase.from('shift_time').select('*').order('shift_name')
-      ]);
-
-      if (operatorsData.error) throw operatorsData.error;
-      if (productsData.error) throw productsData.error;
-      if (machineSpeedsData.error) throw machineSpeedsData.error;
-      if (shiftsData.error) throw shiftsData.error;
-
-      setOperators(operatorsData.data || []);
-      setProducts(productsData.data || []);
-      setMachineSpeeds(machineSpeedsData.data || []);
-      setShifts(shiftsData.data || []);
-
-      // Set initial values for the form if there's data
-      if (machineSpeedsData.data?.[0]) {
-        setFormData(prev => ({
-          ...prev,
-          size: machineSpeedsData.data[0].size,
-          machine_speed_id: machineSpeedsData.data[0].id
-        }));
+      
+      // Fetch operators
+      const operatorsData = await supabase
+        .from('operator')
+        .select('*')
+        .order('operator_name');
+      
+      if (operatorsData.error) {
+        console.error('Error fetching operators:', operatorsData.error);
+      } else {
+        console.log('Operators fetched:', operatorsData.data.length);
+        setOperators(operatorsData.data || []);
+      }
+      
+      // Fetch products
+      const productsData = await supabase
+        .from('product_details')
+        .select('*')
+        .order('product_code');
+      
+      if (productsData.error) {
+        console.error('Error fetching products:', productsData.error);
+      } else {
+        console.log('Products fetched:', productsData.data.length);
+        setProducts(productsData.data || []);
+      }
+      
+      // Fetch machine speeds
+      const machineSpeedsData = await supabase
+        .from('machine_speed')
+        .select('*')
+        .order('size');
+      
+      if (machineSpeedsData.error) {
+        console.error('Error fetching machine speeds:', machineSpeedsData.error);
+      } else {
+        console.log('Machine speeds fetched:', machineSpeedsData.data.length);
+        setMachineSpeeds(machineSpeedsData.data || []);
+        
+        // Set initial values for the form if there's data
+        if (machineSpeedsData.data?.[0]) {
+          setFormData(prev => ({
+            ...prev,
+            size: machineSpeedsData.data[0].size,
+            machine_speed_id: machineSpeedsData.data[0].id
+          }));
+        }
+      }
+      
+      // Fetch shifts
+      const shiftsData = await supabase
+        .from('shifts')
+        .select('*')
+        .order('shift_name');
+      
+      if (shiftsData.error) {
+        console.error('Error fetching shifts:', shiftsData.error);
+      } else {
+        console.log('Shifts fetched:', shiftsData.data.length);
+        setShifts(shiftsData.data || []);
       }
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -88,17 +130,63 @@ export default function ProductionDataForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
+    
     try {
+      // Validate required fields
+      if (!formData.line) {
+        toast.error('Please enter a line');
+        setSubmitting(false);
+        return;
+      }
+      if (!formData.product_id) {
+        toast.error('Please select a product');
+        setSubmitting(false);
+        return;
+      }
+      if (!formData.operator_id) {
+        toast.error('Please select an operator');
+        setSubmitting(false);
+        return;
+      }
+      if (!formData.shift_id) {
+        toast.error('Please select a shift');
+        setSubmitting(false);
+        return;
+      }
+
+      console.log('Submitting form data:', formData);
+      
+      // Prepare data for insertion - convert empty strings to null for optional fields
+      const dataToInsert = {
+        ...formData,
+        assistant_operator_id: formData.assistant_operator_id || null,
+        rm_operator1_id: formData.rm_operator1_id || null,
+        rm_operator2_id: formData.rm_operator2_id || null,
+        shift_incharge_id: formData.shift_incharge_id || null,
+        quality_operator_id: formData.quality_operator_id || null
+      };
+      
       const { data, error } = await supabase
         .from('production_data')
-        .insert([formData])
+        .insert([dataToInsert])
         .select();
 
-      if (error) throw error;
-      console.log('Production data added:', data);
+      if (error) {
+        console.error('Error inserting data:', error);
+        toast.error(`Error saving data: ${error.message}`);
+        throw error;
+      }
+      
+      console.log('Production data added successfully:', data);
+      
+      // Call the callback with the created ID if available
+      if (onProductionDataCreated && data && data.length > 0) {
+        onProductionDataCreated(data[0].id);
+      }
       
       // Show success message
-      alert('Production data saved successfully!');
+      toast.success('Production data saved successfully!');
       
       // Reset form
       setFormData({
@@ -114,9 +202,13 @@ export default function ProductionDataForm() {
         quality_operator_id: '',
         shift_id: ''
       });
+      
+      // Reset submitting state
+      setSubmitting(false);
     } catch (error) {
       console.error('Error inserting data:', error);
-      alert('Error saving production data. Please try again.');
+      toast.error('Error saving production data. Please try again.');
+      setSubmitting(false);
     }
   };
 
@@ -449,9 +541,10 @@ export default function ProductionDataForm() {
                 <Button 
                   type="submit"
                   className="h-8 px-3 bg-gradient-to-r from-blue-600 to-purple-700 text-white hover:from-blue-700 hover:to-purple-800 text-sm whitespace-nowrap"
+                  disabled={submitting}
                 >
                   <Save className="h-3 w-3 mr-1" />
-                  Save
+                  {submitting ? 'Saving...' : 'Save'}
                 </Button>
               </div>
             </div>

@@ -45,7 +45,11 @@ const formSchema = z.object({
   shift_id: z.string().min(1, "Shift is required"),
 })
 
-export default function ProductionDataForm() {
+interface ProductionDataFormProps {
+  onProductionDataCreated?: (id: string) => void;
+}
+
+export default function ProductionDataForm({ onProductionDataCreated }: ProductionDataFormProps) {
   const [loading, setLoading] = useState(false)
   const [operators, setOperators] = useState([])
   const [products, setProducts] = useState([])
@@ -104,14 +108,26 @@ export default function ProductionDataForm() {
         quality_operator_id: data.quality_operator_id === "none" ? null : data.quality_operator_id,
       };
 
-      const { error } = await supabase.from("production_data").insert([formattedData])
-      if (error) throw error
-      toast.success("Production data saved successfully")
-      form.reset()
+      const { data: insertedData, error } = await supabase
+        .from("production_data")
+        .insert([formattedData])
+        .select();
+
+      if (error) throw error;
+      
+      toast.success("Production data saved successfully");
+      
+      // Call the callback with the created ID if available
+      if (onProductionDataCreated && insertedData && insertedData.length > 0) {
+        onProductionDataCreated(insertedData[0].id);
+      }
+      
+      form.reset();
     } catch (error) {
-      toast.error("Error saving production data")
+      toast.error("Error saving production data");
+      console.error("Error saving production data:", error);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 

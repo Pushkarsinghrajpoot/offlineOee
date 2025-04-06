@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Moon, Sun, User, PieChart, LayoutDashboard, Clock, Activity, FileText, Menu, Shield } from "lucide-react"
+import { Moon, Sun, User, PieChart, LayoutDashboard, Clock, Activity, FileText, Menu, Shield, BarChart2 } from "lucide-react"
 import { useAuth } from "@/context/auth-context"
 import { toast } from "sonner"
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet"
@@ -24,6 +24,9 @@ const pageNames: { [key: string]: string } = {
   "/servo-monitoring": "Servo Monitoring",
   "/downtime-tracker": "Downtime Tracker",
   "/data-entry": "Data Entry",
+  "/downtime-analysis": "Downtime Analysis",
+  "/production-analysis": "Production Analysis",
+  "/delay-reasons-analysis": "Delay Reasons Analysis",
   // "/safe-days": "Safe Days",
   "/settings": "Settings",
   "/login": "Login"
@@ -36,6 +39,10 @@ const menuItems = [
   { name: "Downtime Tracker", icon: Clock, path: "/downtime-tracker", feature: "downtimeTracker" },
   { name: "Servo Monitoring", icon: Activity, path: "/servo-monitoring", feature: "servoMonitoring" },
   { name: "Reports", icon: FileText, path: "/reports", feature: "reports" },
+  // Analysis pages
+  { name: "Downtime Analysis", icon: BarChart2, path: "/downtime-analysis", feature: "reports" },
+  { name: "Production Analysis", icon: BarChart2, path: "/production-analysis", feature: "reports" },
+  { name: "Delay Reasons Analysis", icon: BarChart2, path: "/delay-reasons-analysis", feature: "reports" },
 ]
 
 export function Header() {
