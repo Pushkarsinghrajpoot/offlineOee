@@ -305,9 +305,10 @@ export default function DelayEntryForm({
         
         // Parse numeric values with fallbacks - using the correct field names from the form
         const tpcValue = parseInt(String(entry.tpc || '0'));
-        const machineWasteValue = parseInt(String(entry.machineWaste || '0'));
-        const finalWasteValue = parseInt(String(entry.finalWaste || '0'));
         const gpcValue = parseInt(String(entry.gpc || '0'));
+        // Calculate machine waste as TPC - GPC
+        const machineWasteValue = tpcValue >= gpcValue ? tpcValue - gpcValue : 0;
+        const finalWasteValue = parseInt(String(entry.finalWaste || '0'));
         
         console.log("Parsed values:", {
           tpc: tpcValue,
@@ -543,10 +544,10 @@ export default function DelayEntryForm({
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Start</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">End</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">TPC</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">GPC</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">M.Waste</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">F.Waste</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Actual Prod.</th>
-                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">GPC</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Reason</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Downtimes</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Actions</th>
@@ -586,12 +587,17 @@ export default function DelayEntryForm({
                   <td className="p-1">
                     <Input
                       type="number"
-                      value={(entry.tpc - entry.gpc) || ''}
-                      onChange={(e) => handleEntryChange(index, 'machineWaste', Number(e.target.value))}
+                      value={entry.gpc?.toString() || ''}
+                      onChange={(e) => handleEntryChange(index, 'gpc', Number(e.target.value))}
                       className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                      placeholder="Waste"
+                      placeholder="GPC"
                       disabled={entry.isSaved && editMode !== index}
                     />
+                  </td>
+                  <td className="p-1">
+                    <div className="h-8 text-xs px-2 w-full flex items-center justify-center rounded-md border border-gray-200 bg-gray-50">
+                      {entry.tpc && entry.gpc && entry.tpc >= entry.gpc ? (entry.tpc - entry.gpc) : 0}
+                    </div>
                   </td>
                   <td className="p-1">
                     <Input
@@ -605,18 +611,8 @@ export default function DelayEntryForm({
                   </td>
                   <td className="p-1">
                     <div className="h-8 text-xs px-2 w-full flex items-center justify-center rounded-md border border-gray-200 bg-gray-50">
-                      {(entry.tpc - entry.machineWaste - entry.finalWaste) > 0 ? (entry.tpc - entry.machineWaste - entry.finalWaste) : 0}
+                      {entry.gpc}
                     </div>
-                  </td>
-                  <td className="p-1">
-                    <Input
-                      type="number"
-                      value={entry.gpc?.toString() || ''}
-                      onChange={(e) => handleEntryChange(index, 'gpc', Number(e.target.value))}
-                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                      placeholder="GPC"
-                      disabled={entry.isSaved && editMode !== index}
-                    />
                   </td>
                   <td className="p-1">
                     <Select
