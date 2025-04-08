@@ -25,11 +25,10 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
   const [products, setProducts] = useState<Product[]>([]);
   const [machineSpeeds, setMachineSpeeds] = useState<MachineSpeed[]>([]);
   const [shifts, setShifts] = useState<ShiftTime[]>([]);
-  const [lines, setLines] = useState<{id: string, name: string}[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
-    line_id: '',
+    line: '',
     size: '',
     product_id: '',
     machine_speed_id: '',
@@ -111,19 +110,6 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
         console.log('Shifts fetched:', shiftsData.data.length);
         setShifts(shiftsData.data || []);
       }
-      
-      // Fetch lines
-      const linesData = await supabase
-        .from('line')
-        .select('id, name')
-        .order('name');
-      
-      if (linesData.error) {
-        console.error('Error fetching lines:', linesData.error);
-      } else {
-        console.log('Lines fetched:', linesData.data.length);
-        setLines(linesData.data || []);
-      }
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -148,8 +134,8 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
     
     try {
       // Validate required fields
-      if (!formData.line_id) {
-        toast.error('Please select a line');
+      if (!formData.line) {
+        toast.error('Please enter a line');
         setSubmitting(false);
         return;
       }
@@ -204,7 +190,7 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
       
       // Reset form
       setFormData({
-        line_id: '',
+        line: '',
         size: machineSpeeds[0]?.size || '',
         product_id: '',
         machine_speed_id: machineSpeeds[0]?.id || '',
@@ -332,18 +318,16 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
                 Production Line
               </Label>
               <Select
-                value={formData.line_id}
-                onValueChange={(value) => setFormData({ ...formData, line_id: value })}
+                value={formData.line}
+                onValueChange={(value) => setFormData({ ...formData, line: value })}
               >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Select line" />
                 </SelectTrigger>
                 <SelectContent>
-                  {lines.map((line) => (
-                    <SelectItem key={line.id} value={line.id}>
-                      {line.name}
-                    </SelectItem>
-                  ))}
+                  <SelectItem value="Line 1">Line 1</SelectItem>
+                  <SelectItem value="Line 2">Line 2</SelectItem>
+                  <SelectItem value="Line 3">Line 3</SelectItem>
                 </SelectContent>
               </Select>
             </div>

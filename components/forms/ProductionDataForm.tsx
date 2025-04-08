@@ -32,7 +32,7 @@ import {
 import { toast } from "sonner"
 
 const formSchema = z.object({
-  line_id: z.string().min(1, "Line is required"),
+  line: z.string().min(1, "Line is required"),
   size: z.string().min(1, "Size is required"),
   product_id: z.string().min(1, "Product is required"),
   machine_speed_id: z.string().min(1, "Machine speed is required"),
@@ -55,12 +55,11 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
   const [products, setProducts] = useState([])
   const [shifts, setShifts] = useState([])
   const [machineSpeeds, setMachineSpeeds] = useState([])
-  const [lines, setLines] = useState([])
 
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      line_id: "",
+      line: "",
       size: "",
       product_id: "",
       machine_speed_id: "",
@@ -82,15 +81,11 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
       const { data: productData } = await supabase.from("product_details").select("*")
       setProducts(productData || [])
 
-      const { data: shiftData } = await supabase.from("shifts").select("id, shift_name")
+      const { data: shiftData } = await supabase.from("shift_time").select("*")
       setShifts(shiftData || [])
       
       const { data: speedData } = await supabase.from("machine_speed").select("*")
       setMachineSpeeds(speedData || [])
-      
-      // Fetch lines from the line table
-      const { data: lineData } = await supabase.from("line").select("id, name")
-      setLines(lineData || [])
     } catch (error) {
       toast.error("Error fetching reference data")
     }
@@ -150,24 +145,13 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="line_id"
+                name="line"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Line</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select line" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {lines.map((line) => (
-                          <SelectItem key={line.id} value={line.id}>
-                            {line.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <FormControl>
+                      <Input {...field} placeholder="Enter line" />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
