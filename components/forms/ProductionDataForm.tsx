@@ -81,7 +81,7 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
       const { data: productData } = await supabase.from("product_details").select("*")
       setProducts(productData || [])
 
-      const { data: shiftData } = await supabase.from("shift_time").select("*")
+      const { data: shiftData } = await supabase.from("shifts").select("*")
       setShifts(shiftData || [])
       
       const { data: speedData } = await supabase.from("machine_speed").select("*")

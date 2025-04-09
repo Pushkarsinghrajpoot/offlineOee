@@ -43,7 +43,6 @@ export interface Operator {
 
 export interface ProductionData {
   id: string;
-  line: string;
   size: string;
   product_id: string;
   machine_speed_id: string;
@@ -55,15 +54,8 @@ export interface ProductionData {
   quality_operator_id: string | null;
   shift_id: string;
   line_id: string;
-  planned_start: string;
-  planned_end: string;
-  ideal_cycle_time: number;
-  actual_cycle_time: number;
-  theoretical_production_count: number;
-  good_production_count: number;
-  machine_waste: number;
-  manual_waste: number;
-  actual_production: number;
+ 
+
 }
 
 export interface Downtime {

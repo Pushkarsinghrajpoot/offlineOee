@@ -14,7 +14,8 @@ import { FileText, Factory, Ruler, Package, Clock, User, Users, UserCircle, User
 type Operator = Database['public']['Tables']['operator']['Row'];
 type Product = Database['public']['Tables']['product_details']['Row'];
 type MachineSpeed = Database['public']['Tables']['machine_speed']['Row'];
-type ShiftTime = Database['public']['Tables']['shift_time']['Row'];
+type Shift = Database['public']['Tables']['shift_time']['Row'];
+type Line = Database['public']['Tables']['line']['Row'];
 
 interface ProductionDataFormProps {
   onProductionDataCreated?: (id: string) => void;
@@ -24,11 +25,12 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
   const [operators, setOperators] = useState<Operator[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [machineSpeeds, setMachineSpeeds] = useState<MachineSpeed[]>([]);
-  const [shifts, setShifts] = useState<ShiftTime[]>([]);
+  const [shifts, setShifts] = useState<Shift[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [lines, setLines] = useState<Line[]>([]);
   const [formData, setFormData] = useState({
-    line: '',
+    line_id: '',
     size: '',
     product_id: '',
     machine_speed_id: '',
@@ -49,6 +51,19 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
   const fetchData = async () => {
     try {
       setLoading(true);
+
+      //fetch line
+      const lineData = await supabase
+        .from('line')
+        .select('*')
+        .order('name');
+      
+      if (lineData.error) {
+        console.error('Error fetching lines:', lineData.error);
+      } else {
+        console.log('Lines fetched:', lineData.data.length);
+        setLines(lineData.data || []);
+      }
       
       // Fetch operators
       const operatorsData = await supabase
@@ -134,8 +149,8 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
     
     try {
       // Validate required fields
-      if (!formData.line) {
-        toast.error('Please enter a line');
+      if (!formData.line_id) {
+        toast.error('Please select a line');
         setSubmitting(false);
         return;
       }
@@ -159,12 +174,17 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
       
       // Prepare data for insertion - convert empty strings to null for optional fields
       const dataToInsert = {
-        ...formData,
-        assistant_operator_id: formData.assistant_operator_id || null,
-        rm_operator1_id: formData.rm_operator1_id || null,
-        rm_operator2_id: formData.rm_operator2_id || null,
-        shift_incharge_id: formData.shift_incharge_id || null,
-        quality_operator_id: formData.quality_operator_id || null
+        line_id: formData.line_id,
+        size: formData.size,
+        product_id: formData.product_id,
+        machine_speed_id: formData.machine_speed_id,
+        operator_id: formData.operator_id,
+        assistant_operator_id: formData.assistant_operator_id,
+        rm_operator1_id: formData.rm_operator1_id,
+        rm_operator2_id: formData.rm_operator2_id,
+        shift_incharge_id: formData.shift_incharge_id,
+        quality_operator_id: formData.quality_operator_id,
+        shift_id: formData.shift_id
       };
       
       const { data, error } = await supabase
@@ -190,7 +210,7 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
       
       // Reset form
       setFormData({
-        line: '',
+        line_id: '',
         size: machineSpeeds[0]?.size || '',
         product_id: '',
         machine_speed_id: machineSpeeds[0]?.id || '',
@@ -318,16 +338,18 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
                 Production Line
               </Label>
               <Select
-                value={formData.line}
-                onValueChange={(value) => setFormData({ ...formData, line: value })}
+                value={formData.line_id}
+                onValueChange={(value) => setFormData({ ...formData, line_id: value })}
               >
                 <SelectTrigger className="h-8 text-sm">
                   <SelectValue placeholder="Select line" />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Line 1">Line 1</SelectItem>
-                  <SelectItem value="Line 2">Line 2</SelectItem>
-                  <SelectItem value="Line 3">Line 3</SelectItem>
+                <SelectContent> 
+                  {lines.map((line) => (
+                    <SelectItem key={line.id} value={line.id}>
+                      {line.name}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
