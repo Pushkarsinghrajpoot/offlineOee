@@ -19,7 +19,7 @@ import {
   CheckCircle2, 
   Trash2, 
   Pencil, 
-  X, 
+  X,
   AlertTriangle, 
   Settings2,
   FileText,
@@ -52,6 +52,7 @@ export type DelayEntry = {
   wasteReason: string;
   downtimes: DowntimeEntry[];
   isSaved: boolean;
+  wasteItems?: { amount: number; reason: string }[];
 };
 
 interface DelayEntryFormProps {
@@ -117,6 +118,9 @@ export default function DelayEntryForm({
     shift: "",
     isEditable: true
   });
+
+  const [newWasteItem, setNewWasteItem] = useState({ amount: 0, reason: "" });
+  const [showWasteDetailsDialog, setShowWasteDetailsDialog] = useState(false);
 
   // Fetch reference data from Supabase
   const fetchReferenceData = useCallback(async () => {
@@ -280,20 +284,20 @@ export default function DelayEntryForm({
     console.log("Starting to save entries to database. Production Data ID:", productionDataId);
     console.log("Delay entries to save:", delayEntries);
 
-    // Count entries with downtimes
-    const entriesWithDowntimes = delayEntries.filter(entry => 
-      entry.downtimes && entry.downtimes.length > 0
-    );
-    
-    if (entriesWithDowntimes.length === 0) {
-      toast.error("No downtime entries found to save. Please add downtime details by clicking the 'Downtime' button for each entry.");
-      setIsSubmitting(false);
-      return;
-    }
-    
     try {
       if (!productionDataId) {
         toast.error("No production data ID provided.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Count entries with downtimes
+      const entriesWithDowntimes = delayEntries.filter(entry => 
+        entry.downtimes && entry.downtimes.length > 0
+      );
+      
+      if (entriesWithDowntimes.length === 0) {
+        toast.error("No downtime entries found to save. Please add downtime details by clicking the 'Downtime' button for each entry.");
         setIsSubmitting(false);
         return;
       }
@@ -315,6 +319,34 @@ export default function DelayEntryForm({
           finalWaste: finalWasteValue,
           gpc: gpcValue
         });
+        
+        // Prepare waste data arrays
+        const finalWasteCount: number[] = [];
+        const finalWasteReason: string[] = [];
+        
+        // Extract data from wasteItems if available
+        if (entry.wasteItems && entry.wasteItems.length > 0) {
+          entry.wasteItems.forEach(item => {
+            finalWasteCount.push(item.amount);
+            finalWasteReason.push(item.reason);
+          });
+          
+          console.log("Final waste data arrays:", {
+            finalWasteCount,
+            finalWasteReason
+          });
+        } else {
+          // If no waste items but finalWaste exists, use it as a single item
+          if (finalWasteValue > 0) {
+            finalWasteCount.push(finalWasteValue);
+            finalWasteReason.push(entry.wasteReason || 'Not specified');
+            
+            console.log("Using fallback waste data:", {
+              finalWasteCount,
+              finalWasteReason
+            });
+          }
+        }
         
         // First, create all downtime records
         const downtimeIds: string[] = [];
@@ -342,102 +374,203 @@ export default function DelayEntryForm({
               continue;
             }
             
-            // Parse time strings into Date objects and calculate duration
-            const startHour = parseInt(downtime.dtStart.split(':')[0]);
-            const startMinute = parseInt(downtime.dtStart.split(':')[1]);
-            const endHour = parseInt(downtime.dtEnd.split(':')[0]);
-            const endMinute = parseInt(downtime.dtEnd.split(':')[1]);
-            
-            // Use selected date (or current date if not provided) for the timestamps
-            const selectedDateObj = selectedDate ? new Date(selectedDate) : new Date();
-            
-            const startDate = new Date(selectedDateObj);
-            startDate.setHours(startHour, startMinute, 0, 0);
-            
-            const endDate = new Date(selectedDateObj);
-            endDate.setHours(endHour, endMinute, 0, 0);
-            
-            // Handle overnight shifts
-            if (endDate < startDate) {
-              endDate.setDate(endDate.getDate() + 1);
-            }
-            
-            // Calculate duration in minutes
-            const durationMs = endDate.getTime() - startDate.getTime();
-            const durationMinutes = durationMs / (1000 * 60);
-            
-            // Format duration as PostgreSQL interval string
-            const durationString = `${durationMinutes} minutes`;
-            
-            // Prepare the downtime payload
-            const downtimePayload = {
-              start_time: startDate.toISOString(),
-              end_time: endDate.toISOString(),
-              duration: durationString, // PostgreSQL interval format
-              delay_reason_id: delayReasonId,
-              is_planned: downtime.typeOfDT === 'Planned'
-            };
-            
-            console.log("Creating downtime record with payload:", downtimePayload);
-            
-            const { data: downtimeData, error: downtimeError } = await supabase
-              .from('downtime')
-              .insert(downtimePayload)
-              .select()
-              .single();
-            
-            if (downtimeError) {
-              console.error('Error creating downtime record:', downtimeError);
-              toast.error(`Failed to create downtime record: ${downtimeError.message}`);
-            } else {
-              console.log("Created downtime with ID:", downtimeData.id);
-              downtimeIds.push(downtimeData.id);
+            try {
+              // Parse time strings into Date objects and calculate duration
+              const startHour = parseInt(downtime.dtStart.split(':')[0]);
+              const startMinute = parseInt(downtime.dtStart.split(':')[1]);
+              const endHour = parseInt(downtime.dtEnd.split(':')[0]);
+              const endMinute = parseInt(downtime.dtEnd.split(':')[1]);
+              
+              // Use selected date (or current date if not provided) for the timestamps
+              const selectedDateObj = selectedDate ? new Date(selectedDate) : new Date();
+              
+              const startDate = new Date(selectedDateObj);
+              startDate.setHours(startHour, startMinute, 0, 0);
+              
+              const endDate = new Date(selectedDateObj);
+              endDate.setHours(endHour, endMinute, 0, 0);
+              
+              // Handle overnight shifts
+              if (endDate < startDate) {
+                endDate.setDate(endDate.getDate() + 1);
+              }
+              
+              // Calculate duration in minutes
+              const durationMs = endDate.getTime() - startDate.getTime();
+              const durationMinutes = durationMs / (1000 * 60);
+              
+              // Format duration as PostgreSQL interval string
+              const durationString = `${durationMinutes} minutes`;
+              
+              // Prepare the downtime payload
+              const downtimePayload = {
+                start_time: startDate.toISOString(),
+                end_time: endDate.toISOString(),
+                duration: durationString, // PostgreSQL interval format
+                delay_reason_id: delayReasonId,
+                is_planned: downtime.typeOfDT === 'Planned'
+              };
+              
+              console.log("Creating downtime record with payload:", downtimePayload);
+              
+              const { data: downtimeData, error: downtimeError } = await supabase
+                .from('downtime')
+                .insert(downtimePayload)
+                .select()
+                .single();
+              
+              if (downtimeError) {
+                console.error('Error creating downtime record:', downtimeError);
+                toast.error(`Failed to create downtime record: ${downtimeError.message}`);
+              } else if (downtimeData && downtimeData.id) {
+                console.log("Created downtime with ID:", downtimeData.id);
+                downtimeIds.push(downtimeData.id);
+              } else {
+                console.error('Failed to get downtime ID after insert');
+                toast.error('Failed to get downtime ID after creation');
+              }
+            } catch (error) {
+              console.error('Error processing downtime entry:', error);
+              toast.error(`Error processing downtime: ${error instanceof Error ? error.message : String(error)}`);
             }
           }
         }
         
-        // Now create the delay_entry record with the first downtime_id
+        // Continue only if we successfully created at least one downtime record
         if (downtimeIds.length > 0) {
-          const delayEntryPayload = {
-            start_time: entry.startTime,
-            end_time: entry.endTime,
-            tpc: tpcValue,
-            machine_waste: machineWasteValue,
-            final_waste: finalWasteValue,
-            gpc: gpcValue,
-            waste_reason: entry.wasteReason || 'Not specified',
-            production_data_id: productionDataId,
-            downtime_id: downtimeIds[0] // Link to the first downtime record
-          };
+          let finalWasteId = null;
           
-          console.log("Creating delay entry with payload:", delayEntryPayload);
-          
-          const { data: delayEntryData, error: delayEntryError } = await supabase
-            .from('delay_entries')
-            .insert(delayEntryPayload)
-            .select()
-            .single();
-          
-          if (delayEntryError) {
-            console.error('Error creating delay entry:', delayEntryError);
-            toast.error(`Failed to create delay entry: ${delayEntryError.message}`);
-          } else {
-            console.log("Created delay entry with ID:", delayEntryData.id);
-            
-            // If there are multiple downtime records, update them to link back to this delay entry
-            if (downtimeIds.length > 1) {
-              // Skip the first one as it's already linked
-              for (let i = 1; i < downtimeIds.length; i++) {
-                const { error: updateError } = await supabase
-                  .from('downtime')
-                  .update({ delay_entry_id: delayEntryData.id })
-                  .eq('id', downtimeIds[i]);
+          // First save waste data to the final_waste table if we have waste items
+          if (finalWasteCount.length > 0) {
+            try {
+              // Check Supabase table structure by logging
+              const { data: tableInfo, error: tableError } = await supabase
+                .from('final_waste')
+                .select('*')
+                .limit(1);
+              
+              if (tableError) {
+                console.error('Error checking final_waste table:', tableError);
+              } else {
+                console.log('Final waste table structure:', tableInfo);
+              }
+              
+              const finalWastePayload = {
+                final_waste_count: finalWasteCount,     // Try different column name format
+                final_waste_reason: finalWasteReason    // Try different column name format
+              };
+              
+              console.log("Creating final waste record with payload:", finalWastePayload);
+              
+              const { data: finalWasteData, error: finalWasteError } = await supabase
+                .from('final_waste')
+                .insert(finalWastePayload)
+                .select()
+                .single();
+              
+              if (finalWasteError) {
+                console.error('Error creating final waste record:', finalWasteError);
+                toast.error(`Failed to save waste data: ${finalWasteError.message}`);
                 
-                if (updateError) {
-                  console.error(`Error updating downtime ${downtimeIds[i]} with delay entry ID:`, updateError);
+                // Try alternative column names if first attempt failed
+                const alternativeFinalWastePayload = {
+                  final_waste_count: finalWasteCount, 
+                  final_waste_reason: finalWasteReason
+                };
+                
+                console.log("Trying alternative column names:", alternativeFinalWastePayload);
+                
+                const { data: altFinalWasteData, error: altFinalWasteError } = await supabase
+                  .from('final_waste')
+                  .insert(alternativeFinalWastePayload)
+                  .select()
+                  .single();
+                
+                if (altFinalWasteError) {
+                  console.error('Error creating final waste record with alternative column names:', altFinalWasteError);
+                } else if (altFinalWasteData && altFinalWasteData.id) {
+                  console.log("Successfully saved waste data with alternative column names, ID:", altFinalWasteData.id);
+                  finalWasteId = altFinalWasteData.id;
+                }
+              } else if (finalWasteData && finalWasteData.id) {
+                console.log("Successfully saved waste data with ID:", finalWasteData.id);
+                finalWasteId = finalWasteData.id;
+              } else {
+                console.error('Failed to get final_waste ID after insert');
+              }
+            } catch (error) {
+              console.error('Error saving final waste data:', error);
+              toast.error(`Error saving waste data: ${error instanceof Error ? error.message : String(error)}`);
+            }
+          }
+          
+          try {
+            const delayEntryPayload: any = {
+              start_time: entry.startTime,
+              end_time: entry.endTime,
+              tpc: tpcValue,
+              machine_waste: tpcValue - gpcValue,
+              final_waste: finalWasteValue,
+              gpc: gpcValue,
+              waste_reason: entry.wasteReason || 'Not specified',
+              production_data_id: productionDataId,
+              downtime_id: downtimeIds[0] // Link to the first downtime record
+            };
+            
+            // Only include final_waste_id if we have one
+            if (finalWasteId) {
+              delayEntryPayload.final_waste_id = finalWasteId;
+            }
+            
+            console.log("Creating delay entry with payload:", delayEntryPayload);
+            
+            const { data: delayEntryData, error: delayEntryError } = await supabase
+              .from('delay_entries')
+              .insert(delayEntryPayload)
+              .select()
+              .single();
+            
+            if (delayEntryError) {
+              console.error('Error creating delay entry:', delayEntryError);
+              toast.error(`Failed to create delay entry: ${delayEntryError.message}`);
+            } else if (delayEntryData && delayEntryData.id) {
+              console.log("Created delay entry with ID:", delayEntryData.id);
+              
+              // If there are multiple downtime records, update them to link back to this delay entry
+              if (downtimeIds.length > 1) {
+                // Skip the first one as it's already linked
+                for (let i = 1; i < downtimeIds.length; i++) {
+                  const { error: updateError } = await supabase
+                    .from('downtime')
+                    .update({ delay_entry_id: delayEntryData.id })
+                    .eq('id', downtimeIds[i]);
+                  
+                  if (updateError) {
+                    console.error(`Error updating downtime ${downtimeIds[i]} with delay entry ID:`, updateError);
+                  }
                 }
               }
+              
+              // Update the final_waste record with the delay_entry_id if one was created
+              if (finalWasteId) {
+                const { error: updateFinalWasteError } = await supabase
+                  .from('final_waste')
+                  .update({ delay_entry_id: delayEntryData.id })
+                  .eq('id', finalWasteId);
+                
+                if (updateFinalWasteError) {
+                  console.error('Error updating final waste with delay entry ID:', updateFinalWasteError);
+                } else {
+                  console.log(`Successfully linked final waste ${finalWasteId} to delay entry ${delayEntryData.id}`);
+                }
+              }
+            } else {
+              console.error('Failed to get delay_entries ID after insert');
+              toast.error('Failed to get delay entry ID after creation');
             }
+          } catch (error) {
+            console.error('Error creating delay entry:', error);
+            toast.error(`Error creating delay entry: ${error instanceof Error ? error.message : String(error)}`);
           }
         } else {
           toast.error("Failed to create any downtime records. Check the console for details.");
@@ -450,7 +583,7 @@ export default function DelayEntryForm({
       
     } catch (error) {
       console.error("Error saving delay entries:", error);
-      toast.error("An unexpected error occurred while saving delay entries.");
+      toast.error(`An unexpected error occurred while saving delay entries: ${error instanceof Error ? error.message : String(error)}`);
       setIsSubmitting(false);
     }
   };
@@ -479,6 +612,71 @@ export default function DelayEntryForm({
     
     console.log("Filtered delay reasons:", filtered);
     return filtered;
+  };
+
+  // Function to handle opening the waste details dialog
+  const handleOpenWasteDetails = (index: number) => {
+    setCurrentEntryIndex(index);
+    setShowWasteDetailsDialog(true);
+    
+    // Initialize waste items if they don't exist
+    if (!delayEntries[index].wasteItems) {
+      const updatedEntries = [...delayEntries];
+      updatedEntries[index] = {
+        ...updatedEntries[index],
+        wasteItems: []
+      };
+      setDelayEntries(updatedEntries);
+    }
+  };
+
+  // Add waste item to entry
+  const addWasteItem = () => {
+    if (currentEntryIndex === null) return;
+    if (newWasteItem.amount <= 0 || !newWasteItem.reason) {
+      toast.error("Please provide both amount and reason for waste");
+      return;
+    }
+
+    const updatedEntries = [...delayEntries];
+    const entry = updatedEntries[currentEntryIndex];
+    const wasteItems = [...(entry.wasteItems || []), { ...newWasteItem }];
+    
+    // Calculate total waste
+    const totalWaste = wasteItems.reduce((sum, item) => sum + item.amount, 0);
+    
+    // Update the entry
+    updatedEntries[currentEntryIndex] = {
+      ...entry,
+      wasteItems,
+      finalWaste: totalWaste
+    };
+    
+    setDelayEntries(updatedEntries);
+    setNewWasteItem({ amount: 0, reason: "" });
+  };
+
+  // Remove waste item from entry
+  const removeWasteItem = (itemIndex: number) => {
+    if (currentEntryIndex === null) return;
+    
+    const updatedEntries = [...delayEntries];
+    const entry = updatedEntries[currentEntryIndex];
+    const wasteItems = [...(entry.wasteItems || [])];
+    
+    wasteItems.splice(itemIndex, 1);
+    
+    // Calculate total waste
+    const totalWaste = wasteItems.reduce((sum, item) => sum + item.amount, 0);
+    
+    // Update the entry
+    updatedEntries[currentEntryIndex] = {
+      ...entry,
+      wasteItems,
+      finalWaste: totalWaste
+    };
+    
+    setDelayEntries(updatedEntries);
   };
 
   return (
@@ -543,10 +741,10 @@ export default function DelayEntryForm({
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Start</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">End</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">TPC</th>
-                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">M.Waste</th>
-                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">F.Waste</th>
-                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Actual Prod.</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">GPC</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">F.Waste</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">M.Waste</th>
+                <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Actual Prod.</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Reason</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Downtimes</th>
                 <th className="py-2 px-2 text-xs font-semibold text-gray-600 text-left border-b border-gray-200">Actions</th>
@@ -586,37 +784,49 @@ export default function DelayEntryForm({
                   <td className="p-1">
                     <Input
                       type="number"
-                      value={(entry.tpc - entry.gpc) || ''}
-                      onChange={(e) => handleEntryChange(index, 'machineWaste', Number(e.target.value))}
-                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                      placeholder="Waste"
-                      disabled={entry.isSaved && editMode !== index}
-                    />
-                  </td>
-                  <td className="p-1">
-                    <Input
-                      type="number"
-                      value={entry.finalWaste?.toString() || ''}
-                      onChange={(e) => handleEntryChange(index, 'finalWaste', Number(e.target.value))}
-                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                      placeholder="Waste"
-                      disabled={entry.isSaved && editMode !== index}
-                    />
-                  </td>
-                  <td className="p-1">
-                    <div className="h-8 text-xs px-2 w-full flex items-center justify-center rounded-md border border-gray-200 bg-gray-50">
-                      {(entry.tpc - entry.machineWaste - entry.finalWaste) > 0 ? (entry.tpc - entry.machineWaste - entry.finalWaste) : 0}
-                    </div>
-                  </td>
-                  <td className="p-1">
-                    <Input
-                      type="number"
                       value={entry.gpc?.toString() || ''}
                       onChange={(e) => handleEntryChange(index, 'gpc', Number(e.target.value))}
                       className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
                       placeholder="GPC"
                       disabled={entry.isSaved && editMode !== index}
                     />
+                  </td>
+                  <td className="p-1">
+                    <div className="relative w-full">
+                      <Input
+                        type="number"
+                        value={entry.finalWaste?.toString() || ''}
+                        readOnly
+                        className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                        placeholder="Waste"
+                        disabled={entry.isSaved && editMode !== index}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="absolute right-0 top-0 h-8 w-8 p-0 text-gray-500 hover:text-blue-500"
+                        onClick={() => handleOpenWasteDetails(index)}
+                        disabled={entry.isSaved && editMode !== index}
+                      >
+                        <Plus className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </td>
+                  <td className="p-1">
+                    <Input
+                      type="number"
+                      value={(entry.tpc - entry.gpc) || ''}
+                      readOnly
+                      className="h-8 text-xs px-2 w-full rounded-md border-gray-200 focus:border-indigo-500 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                      placeholder="Machine Waste"
+                      disabled={true}
+                    />
+                  </td>
+                  <td className="p-1">
+                    <div className="h-8 text-xs px-2 w-full flex items-center justify-center rounded-md border border-gray-200 bg-gray-50">
+                      {(entry.tpc - (entry.tpc - entry.gpc) - entry.finalWaste) > 0 ? (entry.tpc - (entry.tpc - entry.gpc) - entry.finalWaste) : 0}
+                    </div>
                   </td>
                   <td className="p-1">
                     <Select
@@ -1114,6 +1324,107 @@ export default function DelayEntryForm({
           )}
         </DialogContent>
       </Dialog>
+      
+      {/* Waste Details Dialog */}
+      {showWasteDetailsDialog && currentEntryIndex !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-4 rounded-lg shadow-lg w-full max-w-lg">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-semibold">Waste Breakdown</h3>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowWasteDetailsDialog(false)}
+              >
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            
+            <div className="mt-4">
+              <div className="flex justify-between items-center mb-2">
+                <p className="font-semibold">
+                  Total Waste: {delayEntries[currentEntryIndex].finalWaste || 0}
+                </p>
+              </div>
+              
+              <div className="grid grid-cols-12 gap-2 mb-2">
+                <div className="col-span-5">
+                  <Input
+                    type="number"
+                    value={newWasteItem.amount || ''}
+                    onChange={(e) => setNewWasteItem({ ...newWasteItem, amount: Number(e.target.value) })}
+                    className="w-full h-8 text-xs"
+                    placeholder="Amount"
+                  />
+                </div>
+                <div className="col-span-5">
+                  <Select 
+                    value={newWasteItem.reason}
+                    onValueChange={(value) => setNewWasteItem({ ...newWasteItem, reason: value })}
+                  >
+                    <SelectTrigger className="h-8 text-xs">
+                      <SelectValue placeholder="Select reason" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {machineWasteReasons.map((reason) => (
+                        <SelectItem key={reason} value={reason}>
+                          {reason}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="col-span-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="w-full h-8"
+                    onClick={addWasteItem}
+                  >
+                    Add
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="max-h-48 overflow-y-auto">
+                {delayEntries[currentEntryIndex].wasteItems?.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center py-1 border-b">
+                    <div className="flex-1">
+                      <span className="text-sm font-medium">{item.amount}</span>
+                    </div>
+                    <div className="flex-1">
+                      <span className="text-sm">{item.reason}</span>
+                    </div>
+                    <div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeWasteItem(idx)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              <div className="mt-4 flex justify-end">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => setShowWasteDetailsDialog(false)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       
       {/* Planned Shutdown Dialog */}
       <Dialog open={showPlannedShutdownDialog} onOpenChange={setShowPlannedShutdownDialog}>

@@ -3,6 +3,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -18,8 +24,29 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { CalendarIcon, ArrowUpDown } from "lucide-react";
+import { CalendarIcon, ArrowUpDown, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Line } from 'react-chartjs-2';
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+} from 'chart.js';
+
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend
+);
 
 // Define interfaces
 interface DelayReason {
@@ -45,6 +72,12 @@ interface HeadSummary {
   totalDuration: number;
 }
 
+interface DelayTrend {
+  date: string;
+  count: number;
+  duration: number;
+}
+
 export default function DelayReasonsAnalysis() {
   const [delayReasons, setDelayReasons] = useState<DelayReason[]>([]);
   const [delayStats, setDelayStats] = useState<DelayReason[]>([]);
@@ -54,7 +87,9 @@ export default function DelayReasonsAnalysis() {
   const [delayTypes, setDelayTypes] = useState<string[]>(['all']);
   const [sortField, setSortField] = useState<string>('count');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
-  const [debug, setDebug] = useState<any>(null);
+  const [selectedReason, setSelectedReason] = useState<DelayReason | null>(null);
+  const [showDialog, setShowDialog] = useState(false);
+  const [trends, setTrends] = useState<Record<string, DelayTrend[]>>({});
 
   // Fetch delay reasons and statistics
   useEffect(() => {
@@ -79,7 +114,6 @@ export default function DelayReasonsAnalysis() {
           if (fallbackError) {
             console.error('Error with fallback query:', fallbackError);
           } else if (fallbackData) {
-            // Manually get distinct values
             const uniqueTypes = Array.from(new Set(fallbackData.map(item => item.delaytype)));
             setDelayTypes(['all', ...uniqueTypes]);
           }
@@ -95,63 +129,56 @@ export default function DelayReasonsAnalysis() {
           .order('delaytype', { ascending: true })
           .order('delayhead', { ascending: true });
 
-        if (reasonsError) {
-          console.error('Error fetching delay reasons:', reasonsError);
-          setError(`Error fetching delay reasons: ${reasonsError.message}`);
-          return;
-        }
+        if (reasonsError) throw reasonsError;
 
-        setDelayReasons(reasonsData || []);
-
-        // Use RPC function or raw SQL to get statistics (count and total duration)
-        // This is a query to count downtimes by delay_reason_id and sum their durations
-        const { data: statsData, error: statsError } = await supabase
+        // Fetch downtime data with dates for trends
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const { data: downtimeData, error: downtimeError } = await supabase
           .from('downtime')
-          .select('delay_reason_id, duration')
-          .order('delay_reason_id');
+          .select('delay_reason_id, duration, created_at')
+          .gte('created_at', thirtyDaysAgo.toISOString());
 
-        if (statsError) {
-          console.error('Error fetching downtime statistics:', statsError);
-          setError(`Error fetching statistics: ${statsError.message}`);
-          return;
-        }
+        if (downtimeError) throw downtimeError;
 
-        // Group and process the statistics
+        // Process downtime data for trends
+        const trendData: Record<string, DelayTrend[]> = {};
+        downtimeData.forEach(item => {
+          if (!item.delay_reason_id) return;
+          
+          const date = new Date(item.created_at).toISOString().split('T')[0];
+          if (!trendData[item.delay_reason_id]) {
+            trendData[item.delay_reason_id] = [];
+          }
+          
+          const existingTrend = trendData[item.delay_reason_id].find(t => t.date === date);
+          if (existingTrend) {
+            existingTrend.count++;
+            existingTrend.duration += parseFloat(item.duration) || 0;
+          } else {
+            trendData[item.delay_reason_id].push({
+              date,
+              count: 1,
+              duration: parseFloat(item.duration) || 0
+            });
+          }
+        });
+        
+        setTrends(trendData);
+
+        // Process statistics
         const statsMap = new Map<string, { count: number, totalDuration: number }>();
         
-        statsData?.forEach(item => {
+        downtimeData.forEach(item => {
           if (!item.delay_reason_id) return;
           
           const existing = statsMap.get(item.delay_reason_id) || { count: 0, totalDuration: 0 };
-          
-          // Parse duration - could be a string like "X minutes" or a number
-          let durationMinutes = 0;
-          if (typeof item.duration === 'number') {
-            durationMinutes = item.duration;
-          } else if (typeof item.duration === 'string') {
-            // Parse formats like "X minutes" or HH:MM:SS
-            if (item.duration.includes('minute')) {
-              const match = item.duration.match(/(\d+)\s*minute/);
-              if (match && match[1]) {
-                durationMinutes = parseInt(match[1]);
-              }
-            } else if (item.duration.includes(':')) {
-              const parts = item.duration.split(':');
-              if (parts.length === 3) {
-                durationMinutes = parseInt(parts[0]) * 60 + parseInt(parts[1]);
-              }
-            } else {
-              // Try direct parsing
-              const parsed = parseFloat(item.duration);
-              if (!isNaN(parsed)) {
-                durationMinutes = parsed;
-              }
-            }
-          }
+          const duration = parseFloat(item.duration) || 0;
           
           statsMap.set(item.delay_reason_id, {
             count: existing.count + 1,
-            totalDuration: existing.totalDuration + durationMinutes
+            totalDuration: existing.totalDuration + duration
           });
         });
         
@@ -162,14 +189,14 @@ export default function DelayReasonsAnalysis() {
           total_duration: statsMap.get(reason.id)?.totalDuration || 0
         })) || [];
 
-        setDelayStats(reasonsWithStats);
-        
-        setDebug({
-          reasonsData: reasonsData?.length || 0,
-          statsData: statsData?.length || 0,
-          statsMap: Object.fromEntries(statsMap),
-          reasonsWithStats: reasonsWithStats
-        });
+        // Only keep reasons with non-zero contributions
+        const activeReasons = reasonsWithStats.filter(
+          reason => (reason.count || 0) > 0 || (reason.total_duration || 0) > 0
+        );
+
+        setDelayStats(activeReasons);
+        setDelayReasons(reasonsData || []);
+
       } catch (err) {
         console.error('Exception in fetchDelayReasons:', err);
         setError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
@@ -253,17 +280,72 @@ export default function DelayReasonsAnalysis() {
     duration: delayStats.reduce((sum, reason) => sum + (reason.total_duration || 0), 0)
   };
 
+  const renderTrendChart = (reasonId: string) => {
+    const reasonTrends = trends[reasonId] || [];
+    if (reasonTrends.length === 0) return null;
+
+    const dates = reasonTrends.map(t => t.date);
+    const counts = reasonTrends.map(t => t.count);
+    const durations = reasonTrends.map(t => t.duration);
+
+    const options = {
+      responsive: true,
+      maintainAspectRatio: true,
+      aspectRatio: 2,
+      plugins: {
+        legend: {
+          position: 'top' as const,
+          labels: {
+            boxWidth: 15,
+            padding: 8,
+          },
+        },
+        title: {
+          display: true,
+          text: '30-Day Trend',
+          padding: {
+            top: 4,
+            bottom: 4
+          },
+          font: {
+            size: 14
+          }
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            maxRotation: 45,
+            minRotation: 45
+          }
+        }
+      }
+    };
+
+    const data = {
+      labels: dates,
+      datasets: [
+        {
+          label: 'Count',
+          data: counts,
+          borderColor: 'rgb(53, 162, 235)',
+          backgroundColor: 'rgba(53, 162, 235, 0.5)',
+        },
+        {
+          label: 'Duration (min)',
+          data: durations,
+          borderColor: 'rgb(255, 99, 132)',
+          backgroundColor: 'rgba(255, 99, 132, 0.5)',
+        },
+      ],
+    };
+
+    return <Line options={options} data={data} />;
+  };
+
   return (
     <div className="container mx-auto py-6">
       <h1 className="text-2xl font-bold mb-6">Delay Reasons Analysis</h1>
-      
-      {/* Debug information */}
-      {debug && (
-        <div className="mb-4 p-2 bg-yellow-100 rounded">
-          <p>Delay reasons: {debug.reasonsData}</p>
-          <p>Stats records: {debug.statsData}</p>
-        </div>
-      )}
       
       {/* Filters */}
       <div className="flex flex-wrap gap-4 mb-6">
@@ -299,12 +381,13 @@ export default function DelayReasonsAnalysis() {
               <TableHead>Total Duration (min)</TableHead>
               <TableHead>% of Incidents</TableHead>
               <TableHead>% of Time</TableHead>
+              <TableHead>Trend</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <div className="flex justify-center items-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
                     <span className="ml-2">Loading...</span>
@@ -313,64 +396,25 @@ export default function DelayReasonsAnalysis() {
               </TableRow>
             ) : typesSummary.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   No data available
                 </TableCell>
               </TableRow>
             ) : (
-              typesSummary.map((item) => (
-                <TableRow key={item.type}>
-                  <TableCell className="font-medium">{item.type}</TableCell>
-                  <TableCell>{item.count}</TableCell>
-                  <TableCell>{item.totalDuration.toFixed(0)}</TableCell>
-                  <TableCell>{totals.count ? ((item.count / totals.count) * 100).toFixed(1) : '0'}%</TableCell>
-                  <TableCell>{totals.duration ? ((item.totalDuration / totals.duration) * 100).toFixed(1) : '0'}%</TableCell>
-                </TableRow>
-              ))
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Summary by Head */}
-      <h2 className="text-xl font-bold mt-8 mb-4">Summary by Delay Head</h2>
-      <div className="rounded-md border overflow-x-auto mb-8">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Head</TableHead>
-              <TableHead>Count</TableHead>
-              <TableHead>Total Duration (min)</TableHead>
-              <TableHead>% of Incidents</TableHead>
-              <TableHead>% of Time</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {loading ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
-                  <div className="flex justify-center items-center">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
-                    <span className="ml-2">Loading...</span>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ) : headsSummary.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
-                  No data available
-                </TableCell>
-              </TableRow>
-            ) : (
-              headsSummary.slice(0, 10).map((item) => (
-                <TableRow key={item.head}>
-                  <TableCell className="font-medium">{item.head}</TableCell>
-                  <TableCell>{item.count}</TableCell>
-                  <TableCell>{item.totalDuration.toFixed(0)}</TableCell>
-                  <TableCell>{totals.count ? ((item.count / totals.count) * 100).toFixed(1) : '0'}%</TableCell>
-                  <TableCell>{totals.duration ? ((item.totalDuration / totals.duration) * 100).toFixed(1) : '0'}%</TableCell>
-                </TableRow>
-              ))
+              typesSummary
+                .filter(item => item.count > 0)
+                .map((item) => (
+                  <TableRow key={item.type} className="cursor-pointer hover:bg-gray-50">
+                    <TableCell className="font-medium">{item.type}</TableCell>
+                    <TableCell>{item.count}</TableCell>
+                    <TableCell>{item.totalDuration.toFixed(0)}</TableCell>
+                    <TableCell>{totals.count ? ((item.count / totals.count) * 100).toFixed(1) : '0'}%</TableCell>
+                    <TableCell>{totals.duration ? ((item.totalDuration / totals.duration) * 100).toFixed(1) : '0'}%</TableCell>
+                    <TableCell>
+                      <TrendingUp className="h-4 w-4 text-blue-500" />
+                    </TableCell>
+                  </TableRow>
+                ))
             )}
           </TableBody>
         </Table>
@@ -414,12 +458,13 @@ export default function DelayReasonsAnalysis() {
               </TableHead>
               <TableHead>% of Incidents</TableHead>
               <TableHead>% of Time</TableHead>
+              <TableHead>Details</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={8} className="text-center py-8">
                   <div className="flex justify-center items-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-gray-900"></div>
                     <span className="ml-2">Loading...</span>
@@ -428,26 +473,107 @@ export default function DelayReasonsAnalysis() {
               </TableRow>
             ) : filteredStats.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={8} className="text-center py-8">
                   No delay reasons found for the selected filters
                 </TableCell>
               </TableRow>
             ) : (
-              filteredStats.map((reason) => (
-                <TableRow key={reason.id}>
-                  <TableCell>{reason.delaytype}</TableCell>
-                  <TableCell>{reason.delayhead}</TableCell>
-                  <TableCell>{reason.delaydescription}</TableCell>
-                  <TableCell>{reason.count || 0}</TableCell>
-                  <TableCell>{reason.total_duration?.toFixed(0) || 0}</TableCell>
-                  <TableCell>{totals.count ? ((reason.count || 0) / totals.count * 100).toFixed(1) : '0'}%</TableCell>
-                  <TableCell>{totals.duration ? ((reason.total_duration || 0) / totals.duration * 100).toFixed(1) : '0'}%</TableCell>
-                </TableRow>
-              ))
+              filteredStats
+                .filter(reason => (reason.count || 0) > 0)
+                .map((reason) => (
+                  <TableRow key={reason.id} className="cursor-pointer hover:bg-gray-50">
+                    <TableCell>{reason.delaytype}</TableCell>
+                    <TableCell>{reason.delayhead}</TableCell>
+                    <TableCell>{reason.delaydescription}</TableCell>
+                    <TableCell>{reason.count || 0}</TableCell>
+                    <TableCell>{reason.total_duration?.toFixed(0) || 0}</TableCell>
+                    <TableCell>{totals.count ? ((reason.count || 0) / totals.count * 100).toFixed(1) : '0'}%</TableCell>
+                    <TableCell>{totals.duration ? ((reason.total_duration || 0) / totals.duration * 100).toFixed(1) : '0'}%</TableCell>
+                    <TableCell>
+                      <Button variant="ghost" onClick={() => {
+                        setSelectedReason(reason);
+                        setShowDialog(true);
+                      }}>
+                        View
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))
             )}
           </TableBody>
         </Table>
       </div>
+
+      {/* Detail Dialog */}
+      <Dialog open={showDialog} onOpenChange={setShowDialog}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader className="pb-2">
+            <DialogTitle>Delay Reason Details</DialogTitle>
+          </DialogHeader>
+          {selectedReason && (
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <Card className="h-fit">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Basic Information</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <dl className="space-y-1 text-sm">
+                      <div>
+                        <dt className="font-medium">Type</dt>
+                        <dd>{selectedReason.delaytype}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium">Head</dt>
+                        <dd>{selectedReason.delayhead}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium">Description</dt>
+                        <dd>{selectedReason.delaydescription}</dd>
+                      </div>
+                    </dl>
+                  </CardContent>
+                </Card>
+                <Card className="h-fit">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base">Statistics</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <dl className="space-y-1 text-sm">
+                      <div>
+                        <dt className="font-medium">Total Occurrences</dt>
+                        <dd>{selectedReason.count || 0}</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium">Total Duration</dt>
+                        <dd>{selectedReason.total_duration?.toFixed(0) || 0} minutes</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium">% of Total Incidents</dt>
+                        <dd>{totals.count ? ((selectedReason.count || 0) / totals.count * 100).toFixed(1) : '0'}%</dd>
+                      </div>
+                      <div>
+                        <dt className="font-medium">% of Total Time</dt>
+                        <dd>{totals.duration ? ((selectedReason.total_duration || 0) / totals.duration * 100).toFixed(1) : '0'}%</dd>
+                      </div>
+                    </dl>
+                  </CardContent>
+                </Card>
+              </div>
+              <Card className="h-fit">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">30-Day Trend</CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <div className="h-[200px]">
+                    {renderTrendChart(selectedReason.id)}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
