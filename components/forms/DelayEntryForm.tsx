@@ -52,7 +52,7 @@ export type DelayEntry = {
   wasteReason: string;
   downtimes: DowntimeEntry[];
   isSaved: boolean;
-  wasteItems?: { amount: number; reason: string }[];
+  wasteItems?: { amount: number; reason: string; remarks: string }[];
 };
 
 interface DelayEntryFormProps {
@@ -98,6 +98,7 @@ export default function DelayEntryForm({
   const [showPlannedShutdownDialog, setShowPlannedShutdownDialog] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [productionData, setProductionData] = useState<any>(null);
+  const [shiftTiming, setShiftTiming] = useState<string>('');
 
   // State variables for delay data from Supabase
   const [dtTypes, setDtTypes] = useState<string[]>([]);
@@ -119,8 +120,9 @@ export default function DelayEntryForm({
     isEditable: true
   });
 
-  const [newWasteItem, setNewWasteItem] = useState({ amount: 0, reason: "" });
+  const [newWasteItem, setNewWasteItem] = useState({ amount: 0, reason: "", remarks: "" });
   const [showWasteDetailsDialog, setShowWasteDetailsDialog] = useState(false);
+  const [editingWasteItemIndex, setEditingWasteItemIndex] = useState<number | null>(null);
 
   // Fetch reference data from Supabase
   const fetchReferenceData = useCallback(async () => {
@@ -215,6 +217,32 @@ export default function DelayEntryForm({
   useEffect(() => {
     fetchReferenceData();
   }, [fetchReferenceData]);
+
+  // Fetch shift timing when production data changes
+  useEffect(() => {
+    const fetchShiftTiming = async () => {
+      if (productionData && productionData.shift_id) {
+        try {
+          const { data: shiftData, error } = await supabase
+            .from('shifts')
+            .select('shift_name, shift_timing')
+            .eq('id', productionData.shift_id)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching shift timing:', error);
+          } else if (shiftData) {
+            setShiftTiming(`${shiftData.shift_name} (${shiftData.shift_timing})`);
+            console.log('Shift timing loaded:', shiftData);
+          }
+        } catch (error) {
+          console.error('Error in fetchShiftTiming:', error);
+        }
+      }
+    };
+    
+    fetchShiftTiming();
+  }, [productionData]);
 
   // Function to handle opening the downtime details dialog
   const handleOpenDowntimeDetails = (index: number) => {
@@ -323,27 +351,32 @@ export default function DelayEntryForm({
         // Prepare waste data arrays
         const finalWasteCount: number[] = [];
         const finalWasteReason: string[] = [];
+        const finalWasteRemarks: string[] = []; // Add array for remarks
         
         // Extract data from wasteItems if available
         if (entry.wasteItems && entry.wasteItems.length > 0) {
           entry.wasteItems.forEach(item => {
             finalWasteCount.push(item.amount);
             finalWasteReason.push(item.reason);
+            finalWasteRemarks.push(item.remarks || ''); // Add remarks to array
           });
           
           console.log("Final waste data arrays:", {
             finalWasteCount,
-            finalWasteReason
+            finalWasteReason,
+            finalWasteRemarks
           });
         } else {
           // If no waste items but finalWaste exists, use it as a single item
           if (finalWasteValue > 0) {
             finalWasteCount.push(finalWasteValue);
             finalWasteReason.push(entry.wasteReason || 'Not specified');
+            finalWasteRemarks.push(''); // Add empty remark for backward compatibility
             
             console.log("Using fallback waste data:", {
               finalWasteCount,
-              finalWasteReason
+              finalWasteReason,
+              finalWasteRemarks
             });
           }
         }
@@ -457,7 +490,8 @@ export default function DelayEntryForm({
               
               const finalWastePayload = {
                 final_waste_count: finalWasteCount,     // Try different column name format
-                final_waste_reason: finalWasteReason    // Try different column name format
+                final_waste_reason: finalWasteReason,   // Try different column name format
+                final_waste_remarks: finalWasteRemarks  // Add remarks array to payload
               };
               
               console.log("Creating final waste record with payload:", finalWastePayload);
@@ -475,7 +509,8 @@ export default function DelayEntryForm({
                 // Try alternative column names if first attempt failed
                 const alternativeFinalWastePayload = {
                   final_waste_count: finalWasteCount, 
-                  final_waste_reason: finalWasteReason
+                  final_waste_reason: finalWasteReason,
+                  final_waste_remarks: finalWasteRemarks  // Add remarks array to alternative payload
                 };
                 
                 console.log("Trying alternative column names:", alternativeFinalWastePayload);
@@ -630,33 +665,63 @@ export default function DelayEntryForm({
     }
   };
 
-  // Add waste item to entry
-  const addWasteItem = () => {
+  // Function to add a waste item
+  const addWasteItem = useCallback(() => {
     if (currentEntryIndex === null) return;
-    if (newWasteItem.amount <= 0 || !newWasteItem.reason) {
-      toast.error("Please provide both amount and reason for waste");
+    
+    if (!newWasteItem.amount || !newWasteItem.reason) {
+      toast.error("Please enter amount and reason");
       return;
     }
-
+    
     const updatedEntries = [...delayEntries];
-    const entry = updatedEntries[currentEntryIndex];
-    const wasteItems = [...(entry.wasteItems || []), { ...newWasteItem }];
+    if (!updatedEntries[currentEntryIndex].wasteItems) {
+      updatedEntries[currentEntryIndex].wasteItems = [];
+    }
     
-    // Calculate total waste
-    const totalWaste = wasteItems.reduce((sum, item) => sum + item.amount, 0);
+    if (editingWasteItemIndex !== null) {
+      // Update existing item
+      updatedEntries[currentEntryIndex].wasteItems[editingWasteItemIndex] = { ...newWasteItem };
+      setEditingWasteItemIndex(null);
+      toast.success("Waste item updated");
+    } else {
+      // Add new item
+      updatedEntries[currentEntryIndex].wasteItems.push({ ...newWasteItem });
+      toast.success("Waste item added");
+    }
     
-    // Update the entry
-    updatedEntries[currentEntryIndex] = {
-      ...entry,
-      wasteItems,
-      finalWaste: totalWaste
-    };
+    // Calculate total final waste
+    const totalFinalWaste = updatedEntries[currentEntryIndex].wasteItems.reduce(
+      (sum, item) => sum + item.amount, 0
+    );
+    updatedEntries[currentEntryIndex].finalWaste = totalFinalWaste;
     
     setDelayEntries(updatedEntries);
-    setNewWasteItem({ amount: 0, reason: "" });
-  };
+    setNewWasteItem({ amount: 0, reason: "", remarks: "" });
+  }, [currentEntryIndex, delayEntries, newWasteItem, editingWasteItemIndex]);
 
-  // Remove waste item from entry
+  // Function to edit a waste item
+  const editWasteItem = useCallback((index: number) => {
+    if (currentEntryIndex === null) return;
+    
+    const item = delayEntries[currentEntryIndex].wasteItems?.[index];
+    if (item) {
+      setNewWasteItem({ 
+        amount: item.amount, 
+        reason: item.reason,
+        remarks: item.remarks || ""
+      });
+      setEditingWasteItemIndex(index);
+    }
+  }, [currentEntryIndex, delayEntries]);
+
+  // Function to cancel editing a waste item
+  const cancelEditWasteItem = useCallback(() => {
+    setNewWasteItem({ amount: 0, reason: "", remarks: "" });
+    setEditingWasteItemIndex(null);
+  }, []);
+
+  // Function to remove a waste item
   const removeWasteItem = (itemIndex: number) => {
     if (currentEntryIndex === null) return;
     
@@ -943,11 +1008,17 @@ export default function DelayEntryForm({
             <>
               {/* Shift Summary */}
               <div className="bg-gray-50 p-3">
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <h3 className="text-sm font-medium text-gray-500 mb-1">Shift Time:</h3>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Delay Period:</h3>
                     <p className="text-base font-semibold">
                       {delayEntries[currentEntryIndex]?.startTime || "--:--"} - {delayEntries[currentEntryIndex]?.endTime || "--:--"}
+                    </p>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-medium text-gray-500 mb-1">Production Shift:</h3>
+                    <p className="text-base font-semibold">
+                      {shiftTiming || "Not specified"}
                     </p>
                   </div>
                   <div>
@@ -962,7 +1033,9 @@ export default function DelayEntryForm({
               {/* Downtime Entries */}
               <div className="p-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h3 className="text-lg font-bold">Downtime Entries</h3>
+                  <div>
+                    <h3 className="text-lg font-bold">Downtime Entries</h3>
+                  </div>
                   <div className="flex gap-2">
                     <Button
                       variant="outline"
@@ -1335,7 +1408,11 @@ export default function DelayEntryForm({
                 type="button"
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowWasteDetailsDialog(false)}
+                onClick={() => {
+                  setShowWasteDetailsDialog(false);
+                  setEditingWasteItemIndex(null);
+                  setNewWasteItem({ amount: 0, reason: "", remarks: "" });
+                }}
               >
                 <X className="h-5 w-5" />
               </Button>
@@ -1349,7 +1426,7 @@ export default function DelayEntryForm({
               </div>
               
               <div className="grid grid-cols-12 gap-2 mb-2">
-                <div className="col-span-5">
+                <div className="col-span-3">
                   <Input
                     type="number"
                     value={newWasteItem.amount || ''}
@@ -1358,7 +1435,7 @@ export default function DelayEntryForm({
                     placeholder="Amount"
                   />
                 </div>
-                <div className="col-span-5">
+                <div className="col-span-4">
                   <Select 
                     value={newWasteItem.reason}
                     onValueChange={(value) => setNewWasteItem({ ...newWasteItem, reason: value })}
@@ -1375,40 +1452,99 @@ export default function DelayEntryForm({
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="col-span-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="w-full h-8"
-                    onClick={addWasteItem}
-                  >
-                    Add
-                  </Button>
+                <div className="col-span-3">
+                  <Input
+                    type="text"
+                    value={newWasteItem.remarks || ''}
+                    onChange={(e) => setNewWasteItem({ ...newWasteItem, remarks: e.target.value })}
+                    className="w-full h-8 text-xs"
+                    placeholder="Remarks"
+                  />
+                </div>
+                <div className="col-span-2 flex gap-1">
+                  {editingWasteItemIndex !== null ? (
+                    <>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-full bg-blue-100 hover:bg-blue-200 border-blue-200"
+                        onClick={addWasteItem}
+                      >
+                        Save
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-full"
+                        onClick={cancelEditWasteItem}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-8 bg-green-100 hover:bg-green-200 border-green-200"
+                      onClick={addWasteItem}
+                    >
+                      Add
+                    </Button>
+                  )}
                 </div>
               </div>
               
               <div className="max-h-48 overflow-y-auto">
-                {delayEntries[currentEntryIndex].wasteItems?.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center py-1 border-b">
-                    <div className="flex-1">
-                      <span className="text-sm font-medium">{item.amount}</span>
-                    </div>
-                    <div className="flex-1">
-                      <span className="text-sm">{item.reason}</span>
-                    </div>
-                    <div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeWasteItem(idx)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                {delayEntries[currentEntryIndex].wasteItems?.length > 0 ? (
+                  <table className="w-full border-collapse text-xs">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="p-1 text-left border border-gray-200">Amount</th>
+                        <th className="p-1 text-left border border-gray-200">Reason</th>
+                        <th className="p-1 text-left border border-gray-200">Remarks</th>
+                        <th className="p-1 text-center border border-gray-200">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {delayEntries[currentEntryIndex].wasteItems?.map((item, idx) => (
+                        <tr key={idx} className="border-b">
+                          <td className="p-1 border border-gray-200">{item.amount}</td>
+                          <td className="p-1 border border-gray-200">{item.reason}</td>
+                          <td className="p-1 border border-gray-200">{item.remarks || "-"}</td>
+                          <td className="p-1 border border-gray-200">
+                            <div className="flex justify-center gap-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-blue-500 hover:text-blue-700 hover:bg-blue-100"
+                                onClick={() => editWasteItem(idx)}
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-100"
+                                onClick={() => removeWasteItem(idx)}
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                ) : (
+                  <div className="text-center py-4 text-gray-500">
+                    No waste items added yet.
                   </div>
-                ))}
+                )}
               </div>
               
               <div className="mt-4 flex justify-end">
@@ -1416,7 +1552,11 @@ export default function DelayEntryForm({
                   type="button"
                   variant="default"
                   size="sm"
-                  onClick={() => setShowWasteDetailsDialog(false)}
+                  onClick={() => {
+                    setShowWasteDetailsDialog(false);
+                    setEditingWasteItemIndex(null);
+                    setNewWasteItem({ amount: 0, reason: "", remarks: "" });
+                  }}
                 >
                   Close
                 </Button>

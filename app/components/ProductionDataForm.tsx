@@ -40,8 +40,16 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
     rm_operator2_id: '',
     shift_incharge_id: '',
     quality_operator_id: '',
-    shift_id: ''
+    shift_id: '',
+    date: new Date().toISOString().split('T')[0]
   });
+
+  const [savedProductionData, setSavedProductionData] = useState<any>(null);
+  const [productLines, setProductLines] = useState<any[]>([]);
+  const [productDetails, setProductDetails] = useState<any[]>([]);
+  const [operatorDetails, setOperatorDetails] = useState<any[]>([]);
+  const [shiftDetails, setShiftDetails] = useState<any[]>([]);
+  const [showSavedData, setShowSavedData] = useState(true);
 
   useEffect(() => {
     fetchData();
@@ -184,7 +192,8 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
         rm_operator2_id: formData.rm_operator2_id,
         shift_incharge_id: formData.shift_incharge_id,
         quality_operator_id: formData.quality_operator_id,
-        shift_id: formData.shift_id
+        shift_id: formData.shift_id,
+        date: formData.date
       };
       
       const { data, error } = await supabase
@@ -203,6 +212,9 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
       // Call the callback with the created ID if available
       if (onProductionDataCreated && data && data.length > 0) {
         onProductionDataCreated(data[0].id);
+        
+        // Fetch the complete production data details after saving
+        fetchProductionDataDetails(data[0].id);
       }
       
       // Show success message
@@ -220,7 +232,8 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
         rm_operator2_id: '',
         shift_incharge_id: '',
         quality_operator_id: '',
-        shift_id: ''
+        shift_id: '',
+        date: new Date().toISOString().split('T')[0]
       });
       
       // Reset submitting state
@@ -316,6 +329,105 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
     }
   };
 
+  const fetchProductionDataDetails = async (id: string) => {
+    try {
+      // Fetch the production data with related information
+      const { data: productionData, error } = await supabase
+        .from('production_data')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (error) {
+        console.error('Error fetching production data details:', error);
+        toast.error(`Error fetching production data details: ${error.message}`);
+        return;
+      }
+
+      // Set the saved production data
+      setSavedProductionData(productionData);
+
+      // Fetch related data for display
+      await Promise.all([
+        fetchLineDetails(productionData.line_id),
+        fetchProductDetails(productionData.product_id),
+        fetchOperatorDetails([
+          productionData.operator_id,
+          productionData.assistant_operator_id,
+          productionData.rm_operator1_id,
+          productionData.rm_operator2_id,
+          productionData.shift_incharge_id,
+          productionData.quality_operator_id
+        ].filter(Boolean)),
+        fetchShiftDetails(productionData.shift_id)
+      ]);
+
+    } catch (error) {
+      console.error('Error fetching production data details:', error);
+      toast.error('Error fetching production data details');
+    }
+  };
+
+  const fetchLineDetails = async (lineId: string) => {
+    if (!lineId) return;
+    
+    const { data, error } = await supabase
+      .from('line')
+      .select('*')
+      .eq('id', lineId);
+    
+    if (error) {
+      console.error('Error fetching line details:', error);
+    } else {
+      setProductLines(data);
+    }
+  };
+
+  const fetchProductDetails = async (productId: string) => {
+    if (!productId) return;
+    
+    const { data, error } = await supabase
+      .from('product_details')
+      .select('*')
+      .eq('id', productId);
+    
+    if (error) {
+      console.error('Error fetching product details:', error);
+    } else {
+      setProductDetails(data);
+    }
+  };
+
+  const fetchOperatorDetails = async (operatorIds: string[]) => {
+    if (!operatorIds.length) return;
+    
+    const { data, error } = await supabase
+      .from('operator')
+      .select('*')
+      .in('id', operatorIds);
+    
+    if (error) {
+      console.error('Error fetching operator details:', error);
+    } else {
+      setOperatorDetails(data);
+    }
+  };
+
+  const fetchShiftDetails = async (shiftId: string) => {
+    if (!shiftId) return;
+    
+    const { data, error } = await supabase
+      .from('shifts')
+      .select('*')
+      .eq('id', shiftId);
+    
+    if (error) {
+      console.error('Error fetching shift details:', error);
+    } else {
+      setShiftDetails(data);
+    }
+  };
+
   if (loading) {
     return <div>Loading...</div>;
   }
@@ -330,78 +442,23 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
       </div>
       <CardContent className="p-4">
         <form onSubmit={handleSubmit}>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
-            {/* Column 1 */}
-            <div className="space-y-2">
+          <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+            {/* Date Field - Now First */}
+            <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Factory className="h-3 w-3 text-blue-500" />
-                Production Line
+                <Clock className="h-3 w-3 text-blue-500" />
+                Date
               </Label>
-              <Select
-                value={formData.line_id}
-                onValueChange={(value) => setFormData({ ...formData, line_id: value })}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Select line" />
-                </SelectTrigger>
-                <SelectContent> 
-                  {lines.map((line) => (
-                    <SelectItem key={line.id} value={line.id}>
-                      {line.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Input
+                type="date"
+                value={formData.date}
+                onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                className="h-7 text-xs"
+              />
             </div>
 
-            {/* Column 2 */}
-            <div className="space-y-2">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Ruler className="h-3 w-3 text-blue-500" />
-                Size
-              </Label>
-              <Select
-                value={formData.size}
-                onValueChange={handleSizeChange}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Select size" />
-                </SelectTrigger>
-                <SelectContent>
-                  {machineSpeeds.map((speed) => (
-                    <SelectItem key={speed.id} value={speed.size}>
-                      {speed.size} ({speed.speed} units/min)
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Column 3 */}
-            <div className="space-y-2">
-              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
-                <Package className="h-3 w-3 text-blue-500" />
-                Product
-              </Label>
-              <Select
-                value={formData.product_id}
-                onValueChange={(value) => setFormData({ ...formData, product_id: value })}
-              >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Select product" />
-                </SelectTrigger>
-                <SelectContent>
-                  {products.map((product) => (
-                    <SelectItem key={product.id} value={product.id}>
-                      {product.product_code} - {product.product_description}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Column 4 */}
-            <div className="space-y-2">
+            {/* Shift Field - Now Second */}
+            <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                 <Clock className="h-3 w-3 text-blue-500" />
                 Shift
@@ -410,7 +467,7 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
                 value={formData.shift_id}
                 onValueChange={(value) => setFormData({ ...formData, shift_id: value })}
               >
-                <SelectTrigger className="h-8 text-sm">
+                <SelectTrigger className="h-7 text-xs">
                   <SelectValue placeholder="Select shift" />
                 </SelectTrigger>
                 <SelectContent>
@@ -423,8 +480,77 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
               </Select>
             </div>
 
-            {/* Column 5 */}
-            <div className="space-y-2">
+            {/* Production Line */}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Factory className="h-3 w-3 text-blue-500" />
+                Line
+              </Label>
+              <Select
+                value={formData.line_id}
+                onValueChange={(value) => setFormData({ ...formData, line_id: value })}
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Select line" />
+                </SelectTrigger>
+                <SelectContent> 
+                  {lines.map((line) => (
+                    <SelectItem key={line.id} value={line.id}>
+                      {line.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Size */}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Ruler className="h-3 w-3 text-blue-500" />
+                Size
+              </Label>
+              <Select
+                value={formData.size}
+                onValueChange={handleSizeChange}
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Select size" />
+                </SelectTrigger>
+                <SelectContent>
+                  {machineSpeeds.map((speed) => (
+                    <SelectItem key={speed.id} value={speed.size}>
+                      {speed.size} ({speed.speed} units/min)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Product */}
+            <div className="space-y-1">
+              <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                <Package className="h-3 w-3 text-blue-500" />
+                Product
+              </Label>
+              <Select
+                value={formData.product_id}
+                onValueChange={(value) => setFormData({ ...formData, product_id: value })}
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Select product" />
+                </SelectTrigger>
+                <SelectContent>
+                  {products.map((product) => (
+                    <SelectItem key={product.id} value={product.id}>
+                      {product.product_code} - {product.product_description}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Main Operator */}
+            <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                 <User className="h-3 w-3 text-blue-500" />
                 Main Operator
@@ -433,7 +559,7 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
                 value={formData.operator_id}
                 onValueChange={(value) => setFormData({ ...formData, operator_id: value })}
               >
-                <SelectTrigger className="h-8 text-sm">
+                <SelectTrigger className="h-7 text-xs">
                   <SelectValue placeholder="Select operator" />
                 </SelectTrigger>
                 <SelectContent>
@@ -446,17 +572,17 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
               </Select>
             </div>
 
-            {/* Column 6 */}
-            <div className="space-y-2">
+            {/* Assistant Operator */}
+            <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                 <Users className="h-3 w-3 text-blue-500" />
-                Assistant Operator
+                Assistant
               </Label>
               <Select
                 value={formData.assistant_operator_id}
                 onValueChange={(value) => setFormData({ ...formData, assistant_operator_id: value })}
               >
-                <SelectTrigger className="h-8 text-sm">
+                <SelectTrigger className="h-7 text-xs">
                   <SelectValue placeholder="Select assistant" />
                 </SelectTrigger>
                 <SelectContent>
@@ -469,18 +595,18 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
               </Select>
             </div>
 
-            {/* Column 7 */}
-            <div className="space-y-2">
+            {/* RM Operator 1 */}
+            <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                 <UserCircle className="h-3 w-3 text-blue-500" />
-                RM Operator 1
+                RM Op. 1
               </Label>
               <Select
                 value={formData.rm_operator1_id}
                 onValueChange={(value) => setFormData({ ...formData, rm_operator1_id: value })}
               >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Select RM operator 1" />
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Select RM op. 1" />
                 </SelectTrigger>
                 <SelectContent>
                   {operators.map((operator) => (
@@ -492,18 +618,18 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
               </Select>
             </div>
 
-            {/* Column 8 */}
-            <div className="space-y-2">
+            {/* RM Operator 2 */}
+            <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                 <UserCircle2 className="h-3 w-3 text-blue-500" />
-                RM Operator 2
+                RM Op. 2
               </Label>
               <Select
                 value={formData.rm_operator2_id}
                 onValueChange={(value) => setFormData({ ...formData, rm_operator2_id: value })}
               >
-                <SelectTrigger className="h-8 text-sm">
-                  <SelectValue placeholder="Select RM operator 2" />
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Select RM op. 2" />
                 </SelectTrigger>
                 <SelectContent>
                   {operators.map((operator) => (
@@ -515,17 +641,17 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
               </Select>
             </div>
 
-            {/* Column 9 */}
-            <div className="space-y-2">
+            {/* Shift Incharge */}
+            <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                 <ShieldCheck className="h-3 w-3 text-blue-500" />
-                Shift Incharge
+                Incharge
               </Label>
               <Select
                 value={formData.shift_incharge_id}
                 onValueChange={(value) => setFormData({ ...formData, shift_incharge_id: value })}
               >
-                <SelectTrigger className="h-8 text-sm">
+                <SelectTrigger className="h-7 text-xs">
                   <SelectValue placeholder="Select incharge" />
                 </SelectTrigger>
                 <SelectContent>
@@ -538,41 +664,103 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
               </Select>
             </div>
 
-            {/* Column 10 with Save Button */}
-            <div className="space-y-2">
+            {/* Quality Operator */}
+            <div className="space-y-1">
               <Label className="text-xs font-medium text-gray-500 flex items-center gap-1">
                 <ClipboardCheck className="h-3 w-3 text-blue-500" />
-                Quality Operator
+                Quality
               </Label>
-              <div className="flex gap-2">
-                <Select
-                  value={formData.quality_operator_id}
-                  onValueChange={(value) => setFormData({ ...formData, quality_operator_id: value })}
-                >
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="Select quality operator" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {operators.map((operator) => (
-                      <SelectItem key={operator.id} value={operator.id}>
-                        {operator.operator_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Button 
-                  type="submit"
-                  className="h-8 px-3 bg-gradient-to-r from-blue-600 to-purple-700 text-white hover:from-blue-700 hover:to-purple-800 text-sm whitespace-nowrap"
-                  disabled={submitting}
-                >
-                  <Save className="h-3 w-3 mr-1" />
-                  {submitting ? 'Saving...' : 'Save'}
-                </Button>
-              </div>
+              <Select
+                value={formData.quality_operator_id}
+                onValueChange={(value) => setFormData({ ...formData, quality_operator_id: value })}
+              >
+                <SelectTrigger className="h-7 text-xs">
+                  <SelectValue placeholder="Select quality" />
+                </SelectTrigger>
+                <SelectContent>
+                  {operators.map((operator) => (
+                    <SelectItem key={operator.id} value={operator.id}>
+                      {operator.operator_name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Save Button */}
+            <div className="space-y-1 flex items-end">
+              <Button 
+                type="submit"
+                className="h-7 px-3 bg-gradient-to-r from-blue-600 to-purple-700 text-white hover:from-blue-700 hover:to-purple-800 text-xs whitespace-nowrap w-full"
+                disabled={submitting}
+              >
+                <Save className="h-3 w-3 mr-1" />
+                {submitting ? 'Saving...' : 'Save Data'}
+              </Button>
             </div>
           </div>
         </form>
       </CardContent>
+      
+      {/* Display saved production data with toggle functionality */}
+      {savedProductionData && (
+        <div className="mt-0 bg-blue-50 p-2 rounded-md">
+          <div className="flex justify-between items-center mb-2">
+            <h3 className="text-sm font-semibold text-blue-700 flex items-center">
+              <FileText className="h-3 w-3 mr-1" />
+              Last Saved Production Data
+            </h3>
+            <Button
+              variant="outline"
+              onClick={() => setShowSavedData(!showSavedData)}
+              className="text-xs h-6 px-2"
+            >
+              {showSavedData ? 'Hide Details' : 'Show Details'}
+            </Button>
+          </div>
+          
+          {showSavedData && (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-xs">
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">ID:</span> {savedProductionData.id}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">Date:</span> {savedProductionData.date || 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">Shift:</span> {shiftDetails?.[0]?.shift_name || 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">Line:</span> {productLines?.[0]?.name || 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">Size:</span> {savedProductionData.size || 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">Product:</span> {productDetails?.[0]?.product_code ? `${productDetails[0].product_code} - ${productDetails[0].product_description}` : 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">Main Operator:</span> {operatorDetails?.find(op => op.id === savedProductionData.operator_id)?.operator_name || 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">Assistant:</span> {operatorDetails?.find(op => op.id === savedProductionData.assistant_operator_id)?.operator_name || 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">RM Op. 1:</span> {operatorDetails?.find(op => op.id === savedProductionData.rm_operator1_id)?.operator_name || 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">RM Op. 2:</span> {operatorDetails?.find(op => op.id === savedProductionData.rm_operator2_id)?.operator_name || 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">Shift Incharge:</span> {operatorDetails?.find(op => op.id === savedProductionData.shift_incharge_id)?.operator_name || 'Not specified'}
+              </div>
+              <div className="bg-white rounded-md p-1.5 shadow-sm">
+                <span className="font-medium text-gray-700">Quality Op.:</span> {operatorDetails?.find(op => op.id === savedProductionData.quality_operator_id)?.operator_name || 'Not specified'}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </Card>
   );
 }
