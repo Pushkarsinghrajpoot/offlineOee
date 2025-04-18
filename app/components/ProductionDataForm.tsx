@@ -437,7 +437,7 @@ export default function ProductionDataForm({ onProductionDataCreated }: Producti
       <div className="bg-gradient-to-r from-blue-600 to-purple-700 p-2">
         <h2 className="text-lg font-bold text-white flex items-center">
           <FileText className="h-4 w-4 mr-2" />
-          Production Data Entry
+          Shift Details
         </h2>
       </div>
       <CardContent className="p-4">
